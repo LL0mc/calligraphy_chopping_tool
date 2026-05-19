@@ -1,0 +1,39 @@
+"""项目配置参数"""
+import os
+
+# 路径配置
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PDF_PATH = os.path.join(
+    BASE_DIR,
+    "吴玉生硬笔行书红楼梦诗词 (吴玉生) (z-library.sk, 1lib.sk, z-lib.sk).pdf"
+)
+OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+PAGES_DIR = os.path.join(OUTPUT_DIR, "pages")
+CHARACTERS_DIR = os.path.join(OUTPUT_DIR, "characters")
+
+# PDF 渲染配置
+DPI_SCALE = 2  # 渲染倍数（2x = 约 200 DPI）
+
+# 页面预处理配置
+CONTENT_MARGIN = 50  # 内容区域边距容忍度（像素）
+
+# 单字切割配置
+BINARY_THRESHOLD = 140  # 二值化阈值
+MIN_CHAR_AREA = 800  # 最小字符面积（过滤小字注释）
+MAX_CHAR_AREA = 80000  # 最大字符面积
+MIN_CHAR_WIDTH = 30  # 最小字符宽度
+MAX_CHAR_WIDTH = 400  # 最大字符宽度
+MIN_CHAR_HEIGHT = 30  # 最小字符高度
+MAX_CHAR_HEIGHT = 500  # 最大字符高度
+MIN_ASPECT_RATIO = 0.25  # 最小宽高比
+MAX_ASPECT_RATIO = 4.0  # 最大宽高比
+
+# 网格线检测配置
+GRID_LINE_MIN_LENGTH = 100  # 网格线最小长度（像素）
+GRID_LINE_MAX_THICKNESS = 8  # 网格线最大粗细（像素）
+
+# 字符间距配置
+CHAR_GAP_THRESHOLD = 15  # 字符间隙阈值（像素）
+
+# 测试页码（从0开始）
+TEST_PAGE_INDEX = 23  # 第24页
