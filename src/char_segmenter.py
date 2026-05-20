@@ -80,9 +80,10 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
                      search_margin_x: int = 40, search_margin_y: int = 60,
                      merge_radius: int = 80,
                      exclude_boxes: list = None) -> tuple:
-    """以OCR框为中心，用连通域精确裁剪字符，排除标点区域"""
+    """以OCR框为中心，用连通域精确裁剪字符，排除标点区域（两阶段修正）"""
     h, w = gray.shape
     
+    # Stage 1: Rough localization with punctuation exclusion
     search_x1 = max(0, x_min - search_margin_x)
     search_x2 = min(w, x_max + search_margin_x)
     search_y1 = max(0, y_min - search_margin_y)
@@ -91,6 +92,7 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
     roi = gray[search_y1:search_y2, search_x1:search_x2]
     _, binary = cv2.threshold(roi, binary_threshold, 255, cv2.THRESH_BINARY)
     
+    # Mask out punctuation areas
     if exclude_boxes:
         for ex_x1, ex_y1, ex_w, ex_h in exclude_boxes:
             rx1 = max(0, ex_x1 - search_x1)
@@ -106,15 +108,12 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
     center_x = (x_min - search_x1 + x_max - search_x1) // 2
     center_y = (y_min - search_y1 + y_max - search_y1) // 2
     
-    merged_x_min = roi_w
-    merged_y_min = roi_h
-    merged_x_max = 0
-    merged_y_max = 0
-    found_any = False
-    
+    # Collect candidate components
+    candidates = []
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
-        if area < 30:
+        # Filter very small noise
+        if area < 20:
             continue
             
         x = stats[i, cv2.CC_STAT_LEFT]
@@ -125,20 +124,120 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
         cx = x + bw // 2
         cy = y + bh // 2
         
-        if abs(cx - center_x) < merge_radius and abs(cy - center_y) < merge_radius:
-            merged_x_min = min(merged_x_min, x)
-            merged_y_min = min(merged_y_min, y)
-            merged_x_max = max(merged_x_max, x + bw)
-            merged_y_max = max(merged_y_max, y + bh)
-            found_any = True
+        # Check distance to center
+        dist = ((cx - center_x) ** 2 + (cy - center_y) ** 2) ** 0.5
+        if dist < merge_radius:
+            candidates.append((x, y, bw, bh, area, cx, cy))
     
-    if not found_any:
+    if not candidates:
         return (x_min, y_min, x_max - x_min, y_max - y_min)
     
+    # Stage 2: Merge and refine
+    # Sort candidates by area descending to prioritize main character parts
+    candidates.sort(key=lambda c: c[4], reverse=True)
+    
+    # Merge nearby candidates
+    merged_x_min = roi_w
+    merged_y_min = roi_h
+    merged_x_max = 0
+    merged_y_max = 0
+    
+    # Use the largest component as seed
+    seed = candidates[0]
+    merged_x_min = min(merged_x_min, seed[0])
+    merged_y_min = min(merged_y_min, seed[1])
+    merged_x_max = max(merged_x_max, seed[0] + seed[2])
+    merged_y_max = max(merged_y_max, seed[1] + seed[3])
+    
+    # Only merge components that are close to the seed or to the current merged box
+    # Use a smaller radius for merging to avoid including noise
+    merge_dist = 30
+    
+    for i in range(1, len(candidates)):
+        c = candidates[i]
+        # Check distance to seed center
+        c_cx = c[0] + c[2] // 2
+        c_cy = c[1] + c[3] // 2
+        seed_cx = seed[0] + seed[2] // 2
+        seed_cy = seed[1] + seed[3] // 2
+        
+        dist_to_seed = ((c_cx - seed_cx) ** 2 + (c_cy - seed_cy) ** 2) ** 0.5
+        
+        # Also check distance to current merged box
+        # Find closest point on merged box to component center
+        closest_x = max(merged_x_min, min(c_cx, merged_x_max))
+        closest_y = max(merged_y_min, min(c_cy, merged_y_max))
+        dist_to_box = ((c_cx - closest_x) ** 2 + (c_cy - closest_y) ** 2) ** 0.5
+        
+        if dist_to_seed < merge_dist or dist_to_box < merge_dist:
+            merged_x_min = min(merged_x_min, c[0])
+            merged_y_min = min(merged_y_min, c[1])
+            merged_x_max = max(merged_x_max, c[0] + c[2])
+            merged_y_max = max(merged_y_max, c[1] + c[3])
+    
+    # Final box in global coordinates
     new_x_min = max(0, search_x1 + merged_x_min - padding)
     new_y_min = max(0, search_y1 + merged_y_min - padding)
     new_w = min(w - new_x_min, (merged_x_max - merged_x_min) + padding * 2)
     new_h = min(h - new_y_min, (merged_y_max - merged_y_min) + padding * 2)
+    
+    # Post-processing: If the refined box is much larger than the OCR box, check if we should shrink it
+    ocr_w = x_max - x_min
+    ocr_h = y_max - y_min
+    ocr_area = ocr_w * ocr_h
+    new_area = new_w * new_h
+    
+    # If new box is > 2x OCR area and OCR box had a significant component, prefer OCR box centered on largest component
+    if new_area > ocr_area * 2.0 and ocr_area > 1000:
+        # Check if seed component is mostly within OCR box
+        seed_x1 = search_x1 + seed[0]
+        seed_y1 = search_y1 + seed[1]
+        seed_x2 = seed_x1 + seed[2]
+        seed_y2 = seed_y1 + seed[3]
+        
+        # Intersection with OCR box
+        inter_x1 = max(seed_x1, x_min)
+        inter_y1 = max(seed_y1, y_min)
+        inter_x2 = min(seed_x2, x_max)
+        inter_y2 = min(seed_y2, y_max)
+        
+        if inter_x2 > inter_x1 and inter_y2 > inter_y1:
+            inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+            seed_area = seed[2] * seed[3]
+            
+            # If most of the seed is within OCR box, use a tighter box around seed
+            if inter_area > seed_area * 0.5:
+                new_x_min = max(0, seed_x1 - padding)
+                new_y_min = max(0, seed_y1 - padding)
+                new_w = min(w - new_x_min, seed[2] + padding * 2)
+                new_h = min(h - new_y_min, seed[3] + padding * 2)
+    
+    # Post-processing: Ensure box doesn't overlap with exclude_boxes significantly
+    if exclude_boxes:
+        for ex_x1, ex_y1, ex_w, ex_h in exclude_boxes:
+            # Calculate IoU with exclude box
+            inter_x1 = max(new_x_min, ex_x1)
+            inter_y1 = max(new_y_min, ex_y1)
+            inter_x2 = min(new_x_min + new_w, ex_x1 + ex_w)
+            inter_y2 = min(new_y_min + new_h, ex_y1 + ex_h)
+            
+            if inter_x2 > inter_x1 and inter_y2 > inter_y1:
+                inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+                box_area = new_w * new_h
+                if box_area > 0 and inter_area / box_area > 0.3:
+                    # Trim the box to exclude the punctuation area
+                    if inter_x1 == ex_x1:
+                        new_x_min = max(new_x_min, ex_x1 + ex_w)
+                    elif inter_x2 == ex_x1 + ex_w:
+                        new_w = min(new_w, ex_x1 - new_x_min)
+                    
+                    if inter_y1 == ex_y1:
+                        new_y_min = max(new_y_min, ex_y1 + ex_h)
+                    elif inter_y2 == ex_y1 + ex_h:
+                        new_h = min(new_h, ex_y1 - new_y_min)
+                    
+                    new_w = max(10, new_w)
+                    new_h = max(10, new_h)
     
     return (new_x_min, new_y_min, new_w, new_h)
 
@@ -206,26 +305,80 @@ def split_mixed_columns(columns: list, size_threshold: int = 120) -> list:
 
 
 def filter_calligraphy_columns(columns: list, min_chars: int = 2,
-                                min_char_width: int = 100, min_char_height: int = 100) -> list:
-    """过滤出书法列"""
+                                 min_char_width: int = 100, min_char_height: int = 100,
+                                 min_annotation_width: int = 50, min_annotation_height: int = 50) -> list:
+    """过滤出书法列，同时保留同列的小字标注"""
     result = []
+    # First pass: identify main calligraphy columns
+    main_cols = []
     for col_idx, x_min, x_max, chars in columns:
         avg_width = np.mean([c[1] - c[0] for c in chars])
         avg_height = np.mean([c[3] - c[2] for c in chars])
 
         if avg_width >= min_char_width and avg_height >= min_char_height and len(chars) >= min_chars:
-            result.append((col_idx, x_min, x_max, chars))
+            main_cols.append((col_idx, x_min, x_max, chars))
+
+    # Second pass: merge small chars from nearby columns into main columns
+    # Or keep small char columns if they are close to a main column
+    processed_small_cols = set()
+    for main_idx, main_x_min, main_x_max, main_chars in main_cols:
+        # Find small char columns that overlap or are adjacent to this main column
+        for col_idx, x_min, x_max, chars in columns:
+            if col_idx == main_idx:
+                continue
+            
+            # Check x-overlap or proximity
+            if x_max >= main_x_min - 50 and x_min <= main_x_max + 50:
+                # Check if these are small chars
+                avg_width = np.mean([c[1] - c[0] for c in chars])
+                avg_height = np.mean([c[3] - c[2] for c in chars])
+                
+                if avg_width < min_char_width or avg_height < min_char_height:
+                    # Filter small chars by annotation threshold
+                    valid_small_chars = []
+                    for c in chars:
+                        w = c[1] - c[0]
+                        h = c[3] - c[2]
+                        if w >= min_annotation_width and h >= min_annotation_height:
+                            valid_small_chars.append(c)
+                    
+                    if valid_small_chars:
+                        # Merge into main column
+                        merged_chars = main_chars + valid_small_chars
+                        # Re-sort by y
+                        merged_chars.sort(key=lambda c: c[2])
+                        # Update main column
+                        main_cols[main_idx] = (main_idx, min(main_x_min, x_min), max(main_x_max, x_max), merged_chars)
+                        processed_small_cols.add(col_idx)
+
+    # Add main columns to result
+    for col in main_cols:
+        result.append(col)
+
+    # Add any remaining columns that meet the main threshold (in case we missed any)
+    for col_idx, x_min, x_max, chars in columns:
+        if col_idx not in [c[0] for c in main_cols] and col_idx not in processed_small_cols:
+            avg_width = np.mean([c[1] - c[0] for c in chars])
+            avg_height = np.mean([c[3] - c[2] for c in chars])
+            if avg_width >= min_char_width and avg_height >= min_char_height and len(chars) >= min_chars:
+                result.append((col_idx, x_min, x_max, chars))
+
+    # Sort result by x_min
+    result.sort(key=lambda c: c[1])
+    # Re-index
+    result = [(i, c[1], c[2], c[3]) for i, c in enumerate(result)]
 
     return result
 
 
 def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: int, x_max: int,
-                                  gap_threshold: int = 100, binary_threshold: int = 140,
-                                  min_area: int = 500) -> list:
-    """在字符间隙中检测遗漏的字符"""
+                                   gap_threshold: int = 80, binary_threshold: int = 140,
+                                   min_area: int = 300) -> list:
+    """在字符间隙中检测遗漏的字符（包括列末尾）"""
     missing = []
     h, w = gray.shape
     
+    # Check gaps between characters
     for i in range(len(sorted_chars) - 1):
         curr = sorted_chars[i]
         next_char = sorted_chars[i + 1]
@@ -246,7 +399,7 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
         dark_mask = roi < binary_threshold
         dark_ratio = np.sum(dark_mask) / dark_mask.size
         
-        if dark_ratio < 0.2:
+        if dark_ratio < 0.15:
             continue
         
         # Connected component analysis
@@ -269,22 +422,17 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
             if x + bw < x_min - 10 or x > x_max + 10:
                 continue
             
-            # Filter by aspect ratio (characters should be roughly square)
+            # Filter by aspect ratio
             aspect_ratio = bw / bh if bh > 0 else 0
-            if aspect_ratio < 0.3 or aspect_ratio > 3.0:
-                continue
-            
-            # Filter by size (should be similar to other characters)
-            if bw < 30 or bh < 30:
+            if aspect_ratio < 0.2 or aspect_ratio > 5.0:
                 continue
             
             candidates.append((x, x + bw, y, y + bh, area, bw, bh))
         
-        # Merge nearby candidates (might be parts of same character)
+        # Merge nearby candidates
         if not candidates:
             continue
         
-        # Use 2D distance to merge candidates
         merged = []
         used = [False] * len(candidates)
         
@@ -293,7 +441,7 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
                 continue
             
             current = candidates[i]
-            merged_box = list(current[:4])  # x1, x2, y1, y2
+            merged_box = list(current[:4])
             merged_area = current[4]
             merged_bw = current[5]
             merged_bh = current[6]
@@ -304,7 +452,6 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
                     continue
                 
                 other = candidates[j]
-                # Calculate 2D distance between centers
                 center1_x = (current[0] + current[1]) / 2
                 center1_y = (current[2] + current[3]) / 2
                 center2_x = (other[0] + other[1]) / 2
@@ -312,8 +459,7 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
                 
                 distance = ((center1_x - center2_x) ** 2 + (center1_y - center2_y) ** 2) ** 0.5
                 
-                # If distance is small, merge
-                if distance < 50:  # Threshold for merging
+                if distance < 40:
                     merged_box[0] = min(merged_box[0], other[0])
                     merged_box[1] = max(merged_box[1], other[1])
                     merged_box[2] = min(merged_box[2], other[2])
@@ -325,9 +471,56 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
             
             merged.append((merged_box[0], merged_box[1], merged_box[2], merged_box[3], merged_area, merged_bw, merged_bh))
         
-        # Add merged candidates as missing characters
         for x1, x2, y1, y2, area, bw, bh in merged:
             missing.append((x1, x2, y1, y2, '?', 0.0, -1, -1))
+    
+    # Check for missing character at the end of the column
+    if sorted_chars:
+        last_char = sorted_chars[-1]
+        gap_start = last_char[3]
+        gap_end = h  # Use full image height
+        
+        # Estimate gap size based on average character height
+        avg_height = np.mean([c[3] - c[2] for c in sorted_chars])
+        gap_size = gap_end - gap_start
+        
+        # If there's enough space for at least half a character
+        if gap_size > avg_height * 0.5:
+            search_x1 = max(0, x_min - 20)
+            search_x2 = min(w, x_max + 20)
+            roi = gray[gap_start:gap_end, search_x1:search_x2]
+            
+            dark_mask = roi < binary_threshold
+            dark_ratio = np.sum(dark_mask) / dark_mask.size
+            
+            if dark_ratio > 0.1:
+                _, binary = cv2.threshold(roi, binary_threshold, 255, cv2.THRESH_BINARY)
+                num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
+                
+                candidates = []
+                for j in range(1, num_labels):
+                    area = stats[j, cv2.CC_STAT_AREA]
+                    if area < min_area * 0.5:  # Allow smaller area for last char
+                        continue
+                    
+                    x = stats[j, cv2.CC_STAT_LEFT] + search_x1
+                    y = stats[j, cv2.CC_STAT_TOP] + gap_start
+                    bw = stats[j, cv2.CC_STAT_WIDTH]
+                    bh = stats[j, cv2.CC_STAT_HEIGHT]
+                    
+                    if x + bw < x_min - 10 or x > x_max + 10:
+                        continue
+                    
+                    aspect_ratio = bw / bh if bh > 0 else 0
+                    if aspect_ratio < 0.2 or aspect_ratio > 5.0:
+                        continue
+                    
+                    candidates.append((x, x + bw, y, y + bh, area, bw, bh))
+                
+                if candidates:
+                    # Take the largest candidate
+                    best = max(candidates, key=lambda c: c[4])
+                    missing.append((best[0], best[1], best[2], best[3], '?', 0.0, -1, -1))
     
     return missing
 
@@ -398,7 +591,8 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
             new_x, new_y, new_w, new_h = refine_char_bbox(
                 gray, cx_min, cx_max, cy_min, cy_max,
                 binary_threshold=config.get("binary_threshold", 140),
-                padding=config.get("bbox_padding", 5)
+                padding=config.get("bbox_padding", 5),
+                exclude_boxes=punctuation_boxes
             )
             
             area = new_w * new_h
@@ -415,6 +609,53 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     print(f"[去重] 去重前: {len(all_characters)} 个字符")
     all_characters = remove_overlapping_boxes(all_characters, iou_threshold=config.get("iou_threshold", 0.3))
     print(f"[去重] 去重后: {len(all_characters)} 个字符")
+
+    # 后处理：修正过大的框（通常是列末尾的遗漏字符）
+    # 按列分组
+    col_chars = {}
+    for char in all_characters:
+        col_idx = char[6]
+        if col_idx not in col_chars:
+            col_chars[col_idx] = []
+        col_chars[col_idx].append(char)
+    
+    # 对每列检查异常大的框
+    for col_idx, chars in col_chars.items():
+        areas = [c[2] * c[3] for c in chars]
+        if not areas:
+            continue
+        median_area = np.median(areas)
+        print(f"[后处理] 列 {col_idx + 1}: 中位面积 {median_area:.0f}, 最大面积 {max(areas):.0f}")
+        
+        for i, char in enumerate(chars):
+            area = char[2] * char[3]
+            # 如果面积大于中位数的3倍，尝试缩小
+            if area > median_area * 3.0 and median_area > 1000:
+                print(f"[后处理] 列 {col_idx + 1} 行 {char[7] + 1}: 面积 {area:.0f} 过大，缩小")
+                # 计算目标尺寸（基于中位数面积的平方根）
+                target_size = int(np.sqrt(median_area))
+                # 保持中心不变，缩小框
+                cx = char[0] + char[2] // 2
+                cy = char[1] + char[3] // 2
+                
+                new_w = min(char[2], target_size)
+                new_h = min(char[3], target_size)
+                
+                new_x = max(0, cx - new_w // 2)
+                new_y = max(0, cy - new_h // 2)
+                
+                # 更新字符信息
+                chars[i] = (
+                    new_x, new_y, new_w, new_h,
+                    gray[new_y:new_y+new_h, new_x:new_x+new_w],
+                    new_w * new_h,
+                    char[6], char[7], char[8], char[9]
+                )
+    
+    # 重新合并所有字符
+    all_characters = []
+    for col_idx in sorted(col_chars.keys()):
+        all_characters.extend(col_chars[col_idx])
 
     return all_characters
 
