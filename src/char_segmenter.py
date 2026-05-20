@@ -411,6 +411,11 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
 
         print(f"[切割] 列 {new_col_idx + 1} (x={x_min}-{x_max}): {len(sorted_chars)} 个字符")
 
+    # 移除重叠框
+    print(f"[去重] 去重前: {len(all_characters)} 个字符")
+    all_characters = remove_overlapping_boxes(all_characters, iou_threshold=config.get("iou_threshold", 0.3))
+    print(f"[去重] 去重后: {len(all_characters)} 个字符")
+
     return all_characters
 
 
@@ -432,6 +437,55 @@ def save_characters(characters: list, output_dir: str, page_num: int, pad_size: 
         saved_paths.append(filepath)
 
     return saved_paths
+
+
+def compute_iou(box1: tuple, box2: tuple) -> float:
+    """计算两个框的IoU (x, y, w, h)"""
+    x1_1, y1_1, w1, h1 = box1
+    x1_2, y1_2, w2, h2 = box2
+    x2_1, y2_1 = x1_1 + w1, y1_1 + h1
+    x2_2, y2_2 = x1_2 + w2, y1_2 + h2
+    
+    inter_x1 = max(x1_1, x1_2)
+    inter_y1 = max(y1_1, y1_2)
+    inter_x2 = min(x2_1, x2_2)
+    inter_y2 = min(y2_1, y2_2)
+    
+    inter_w = max(0, inter_x2 - inter_x1)
+    inter_h = max(0, inter_y2 - inter_y1)
+    inter_area = inter_w * inter_h
+    
+    area1 = w1 * h1
+    area2 = w2 * h2
+    union_area = area1 + area2 - inter_area
+    
+    return inter_area / union_area if union_area > 0 else 0
+
+
+def remove_overlapping_boxes(characters: list, iou_threshold: float = 0.3) -> list:
+    """移除重叠的字符框，保留面积较大的框"""
+    if not characters:
+        return []
+    
+    # 按面积降序排序
+    sorted_chars = sorted(characters, key=lambda c: c[2] * c[3], reverse=True)
+    
+    keep = []
+    for char in sorted_chars:
+        box = (char[0], char[1], char[2], char[3])
+        is_overlap = False
+        for kept in keep:
+            kept_box = (kept[0], kept[1], kept[2], kept[3])
+            iou = compute_iou(box, kept_box)
+            if iou > iou_threshold:
+                is_overlap = True
+                break
+        if not is_overlap:
+            keep.append(char)
+    
+    # 按列和行重新排序
+    keep.sort(key=lambda c: (c[6], c[7]))
+    return keep
 
 
 def draw_character_boxes(original_image: np.ndarray, characters: list,
