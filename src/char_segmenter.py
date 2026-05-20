@@ -77,13 +77,13 @@ def get_ocr_char_boxes(gray: np.ndarray) -> list:
 
 def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max: int,
                      binary_threshold: int = 140, padding: int = 5,
-                     search_margin_x: int = 40, search_margin_y: int = 60,
-                     merge_radius: int = 80,
-                     exclude_boxes: list = None) -> tuple:
-    """以OCR框为中心，用连通域精确裁剪字符，排除标点区域（两阶段修正）"""
+                     search_margin_x: int = 40, search_margin_y: int = 100,
+                     merge_radius: int = 100,
+                     exclude_boxes: list = None,
+                     claimed_regions: list = None) -> tuple:
+    """以OCR框为中心，用连通域精确裁剪字符，排除标点区域和已被前面字符声明的区域"""
     h, w = gray.shape
     
-    # Stage 1: Rough localization with punctuation exclusion
     search_x1 = max(0, x_min - search_margin_x)
     search_x2 = min(w, x_max + search_margin_x)
     search_y1 = max(0, y_min - search_margin_y)
@@ -92,27 +92,16 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
     roi = gray[search_y1:search_y2, search_x1:search_x2]
     _, binary = cv2.threshold(roi, binary_threshold, 255, cv2.THRESH_BINARY)
     
-    # Mask out punctuation areas
-    if exclude_boxes:
-        for ex_x1, ex_y1, ex_w, ex_h in exclude_boxes:
-            rx1 = max(0, ex_x1 - search_x1)
-            ry1 = max(0, ex_y1 - search_y1)
-            rx2 = min(roi.shape[1], ex_x1 + ex_w - search_x1)
-            ry2 = min(roi.shape[0], ex_y1 + ex_h - search_y1)
-            if rx2 > rx1 and ry2 > ry1:
-                binary[ry1:ry2, rx1:rx2] = 0
-    
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
     
     roi_h, roi_w = binary.shape
     center_x = (x_min - search_x1 + x_max - search_x1) // 2
     center_y = (y_min - search_y1 + y_max - search_y1) // 2
     
-    # Collect candidate components
+    # Collect candidate components, excluding punctuation
     candidates = []
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
-        # Filter very small noise
         if area < 20:
             continue
             
@@ -124,56 +113,52 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
         cx = x + bw // 2
         cy = y + bh // 2
         
+        # Component bounding box in global coordinates
+        comp_x1 = search_x1 + x
+        comp_x2 = comp_x1 + bw
+        comp_y1 = search_y1 + y
+        comp_y2 = comp_y1 + bh
+        
+        # Check if component overlaps with OCR box
+        overlap_ocr = (comp_x1 < x_max and comp_x2 > x_min and comp_y1 < y_max and comp_y2 > y_min)
+        
+        # Skip punctuation components: those whose center falls in a punctuation box AND
+        # whose bounding box does NOT overlap with the OCR box
+        is_punct = False
+        if exclude_boxes and not overlap_ocr:
+            gcx = search_x1 + cx
+            gcy = search_y1 + cy
+            for ex_x1, ex_y1, ex_w, ex_h in exclude_boxes:
+                if gcx >= ex_x1 and gcx < ex_x1 + ex_w and gcy >= ex_y1 and gcy < ex_y1 + ex_h:
+                    is_punct = True
+                    break
+        if is_punct:
+            continue
+        
         # Check distance to center
         dist = ((cx - center_x) ** 2 + (cy - center_y) ** 2) ** 0.5
         if dist < merge_radius:
+            # Skip components already claimed by a previous character in the same column
+            if claimed_regions:
+                gcx = search_x1 + cx
+                gcy = search_y1 + cy
+                claimed = False
+                for cr_x1, cr_y1, cr_x2, cr_y2 in claimed_regions:
+                    if gcx >= cr_x1 and gcx < cr_x2 and gcy >= cr_y1 and gcy < cr_y2:
+                        claimed = True
+                        break
+                if claimed:
+                    continue
             candidates.append((x, y, bw, bh, area, cx, cy))
     
     if not candidates:
         return (x_min, y_min, x_max - x_min, y_max - y_min)
     
-    # Stage 2: Merge and refine
-    # Sort candidates by area descending to prioritize main character parts
-    candidates.sort(key=lambda c: c[4], reverse=True)
-    
-    # Merge nearby candidates
-    merged_x_min = roi_w
-    merged_y_min = roi_h
-    merged_x_max = 0
-    merged_y_max = 0
-    
-    # Use the largest component as seed
-    seed = candidates[0]
-    merged_x_min = min(merged_x_min, seed[0])
-    merged_y_min = min(merged_y_min, seed[1])
-    merged_x_max = max(merged_x_max, seed[0] + seed[2])
-    merged_y_max = max(merged_y_max, seed[1] + seed[3])
-    
-    # Only merge components that are close to the seed or to the current merged box
-    # Use a smaller radius for merging to avoid including noise
-    merge_dist = 30
-    
-    for i in range(1, len(candidates)):
-        c = candidates[i]
-        # Check distance to seed center
-        c_cx = c[0] + c[2] // 2
-        c_cy = c[1] + c[3] // 2
-        seed_cx = seed[0] + seed[2] // 2
-        seed_cy = seed[1] + seed[3] // 2
-        
-        dist_to_seed = ((c_cx - seed_cx) ** 2 + (c_cy - seed_cy) ** 2) ** 0.5
-        
-        # Also check distance to current merged box
-        # Find closest point on merged box to component center
-        closest_x = max(merged_x_min, min(c_cx, merged_x_max))
-        closest_y = max(merged_y_min, min(c_cy, merged_y_max))
-        dist_to_box = ((c_cx - closest_x) ** 2 + (c_cy - closest_y) ** 2) ** 0.5
-        
-        if dist_to_seed < merge_dist or dist_to_box < merge_dist:
-            merged_x_min = min(merged_x_min, c[0])
-            merged_y_min = min(merged_y_min, c[1])
-            merged_x_max = max(merged_x_max, c[0] + c[2])
-            merged_y_max = max(merged_y_max, c[1] + c[3])
+    # Merge all candidates (already filtered by merge_radius from OCR center)
+    merged_x_min = min(c[0] for c in candidates)
+    merged_y_min = min(c[1] for c in candidates)
+    merged_x_max = max(c[0] + c[2] for c in candidates)
+    merged_y_max = max(c[1] + c[3] for c in candidates)
     
     # Final box in global coordinates
     new_x_min = max(0, search_x1 + merged_x_min - padding)
@@ -181,63 +166,33 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
     new_w = min(w - new_x_min, (merged_x_max - merged_x_min) + padding * 2)
     new_h = min(h - new_y_min, (merged_y_max - merged_y_min) + padding * 2)
     
-    # Post-processing: If the refined box is much larger than the OCR box, check if we should shrink it
+    # Post-processing: If the refined box is much larger than the OCR box, fall back to the largest component's box
     ocr_w = x_max - x_min
     ocr_h = y_max - y_min
     ocr_area = ocr_w * ocr_h
     new_area = new_w * new_h
     
-    # If new box is > 2x OCR area and OCR box had a significant component, prefer OCR box centered on largest component
     if new_area > ocr_area * 2.0 and ocr_area > 1000:
-        # Check if seed component is mostly within OCR box
-        seed_x1 = search_x1 + seed[0]
-        seed_y1 = search_y1 + seed[1]
-        seed_x2 = seed_x1 + seed[2]
-        seed_y2 = seed_y1 + seed[3]
+        largest = max(candidates, key=lambda c: c[4])
+        lx1 = search_x1 + largest[0]
+        ly1 = search_y1 + largest[1]
+        lx2 = lx1 + largest[2]
+        ly2 = ly1 + largest[3]
         
-        # Intersection with OCR box
-        inter_x1 = max(seed_x1, x_min)
-        inter_y1 = max(seed_y1, y_min)
-        inter_x2 = min(seed_x2, x_max)
-        inter_y2 = min(seed_y2, y_max)
+        inter_x1 = max(lx1, x_min)
+        inter_y1 = max(ly1, y_min)
+        inter_x2 = min(lx2, x_max)
+        inter_y2 = min(ly2, y_max)
         
         if inter_x2 > inter_x1 and inter_y2 > inter_y1:
             inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
-            seed_area = seed[2] * seed[3]
+            comp_area = largest[2] * largest[3]
             
-            # If most of the seed is within OCR box, use a tighter box around seed
-            if inter_area > seed_area * 0.5:
-                new_x_min = max(0, seed_x1 - padding)
-                new_y_min = max(0, seed_y1 - padding)
-                new_w = min(w - new_x_min, seed[2] + padding * 2)
-                new_h = min(h - new_y_min, seed[3] + padding * 2)
-    
-    # Post-processing: Ensure box doesn't overlap with exclude_boxes significantly
-    if exclude_boxes:
-        for ex_x1, ex_y1, ex_w, ex_h in exclude_boxes:
-            # Calculate IoU with exclude box
-            inter_x1 = max(new_x_min, ex_x1)
-            inter_y1 = max(new_y_min, ex_y1)
-            inter_x2 = min(new_x_min + new_w, ex_x1 + ex_w)
-            inter_y2 = min(new_y_min + new_h, ex_y1 + ex_h)
-            
-            if inter_x2 > inter_x1 and inter_y2 > inter_y1:
-                inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
-                box_area = new_w * new_h
-                if box_area > 0 and inter_area / box_area > 0.3:
-                    # Trim the box to exclude the punctuation area
-                    if inter_x1 == ex_x1:
-                        new_x_min = max(new_x_min, ex_x1 + ex_w)
-                    elif inter_x2 == ex_x1 + ex_w:
-                        new_w = min(new_w, ex_x1 - new_x_min)
-                    
-                    if inter_y1 == ex_y1:
-                        new_y_min = max(new_y_min, ex_y1 + ex_h)
-                    elif inter_y2 == ex_y1 + ex_h:
-                        new_h = min(new_h, ex_y1 - new_y_min)
-                    
-                    new_w = max(10, new_w)
-                    new_h = max(10, new_h)
+            if inter_area > comp_area * 0.5:
+                new_x_min = max(0, lx1 - padding)
+                new_y_min = max(0, ly1 - padding)
+                new_w = min(w - new_x_min, largest[2] + padding * 2)
+                new_h = min(h - new_y_min, largest[3] + padding * 2)
     
     return (new_x_min, new_y_min, new_w, new_h)
 
@@ -305,63 +260,19 @@ def split_mixed_columns(columns: list, size_threshold: int = 120) -> list:
 
 
 def filter_calligraphy_columns(columns: list, min_chars: int = 2,
-                                 min_char_width: int = 100, min_char_height: int = 100,
-                                 min_annotation_width: int = 50, min_annotation_height: int = 50) -> list:
-    """过滤出书法列，同时保留同列的小字标注"""
+                                 min_col_width: int = 130,
+                                 min_char_width: int = None, min_char_height: int = None,
+                                 min_annotation_width: int = None, min_annotation_height: int = None,
+                                 **kwargs) -> list:
+    """用列宽过滤书法列（列宽140-240px）vs 注释列（列宽60-110px）
+    
+    min_col_width=130 即可干净区分两者。
+    """
     result = []
-    # First pass: identify main calligraphy columns
-    main_cols = []
     for col_idx, x_min, x_max, chars in columns:
-        avg_width = np.mean([c[1] - c[0] for c in chars])
-        avg_height = np.mean([c[3] - c[2] for c in chars])
-
-        if avg_width >= min_char_width and avg_height >= min_char_height and len(chars) >= min_chars:
-            main_cols.append((col_idx, x_min, x_max, chars))
-
-    # Second pass: merge small chars from nearby columns into main columns
-    # Or keep small char columns if they are close to a main column
-    processed_small_cols = set()
-    for i, (main_col_idx, main_x_min, main_x_max, main_chars) in enumerate(main_cols):
-        # Find small char columns that overlap or are adjacent to this main column
-        for col_idx, x_min, x_max, chars in columns:
-            if col_idx == main_col_idx:
-                continue
-            
-            # Check x-overlap or proximity
-            if x_max >= main_x_min - 50 and x_min <= main_x_max + 50:
-                # Check if these are small chars
-                avg_width = np.mean([c[1] - c[0] for c in chars])
-                avg_height = np.mean([c[3] - c[2] for c in chars])
-                
-                if avg_width < min_char_width or avg_height < min_char_height:
-                    # Filter small chars by annotation threshold
-                    valid_small_chars = []
-                    for c in chars:
-                        w = c[1] - c[0]
-                        h = c[3] - c[2]
-                        if w >= min_annotation_width and h >= min_annotation_height:
-                            valid_small_chars.append(c)
-                    
-                    if valid_small_chars:
-                        # Merge into main column
-                        merged_chars = main_chars + valid_small_chars
-                        # Re-sort by y
-                        merged_chars.sort(key=lambda c: c[2])
-                        # Update main column
-                        main_cols[i] = (main_col_idx, min(main_x_min, x_min), max(main_x_max, x_max), merged_chars)
-                        processed_small_cols.add(col_idx)
-
-    # Add main columns to result
-    for col in main_cols:
-        result.append(col)
-
-    # Add any remaining columns that meet the main threshold (in case we missed any)
-    for col_idx, x_min, x_max, chars in columns:
-        if col_idx not in [c[0] for c in main_cols] and col_idx not in processed_small_cols:
-            avg_width = np.mean([c[1] - c[0] for c in chars])
-            avg_height = np.mean([c[3] - c[2] for c in chars])
-            if avg_width >= min_char_width and avg_height >= min_char_height and len(chars) >= min_chars:
-                result.append((col_idx, x_min, x_max, chars))
+        col_width = x_max - x_min
+        if col_width >= min_col_width and len(chars) >= min_chars:
+            result.append((col_idx, x_min, x_max, chars))
 
     # Sort result by x_min
     result.sort(key=lambda c: c[1])
@@ -566,14 +477,14 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     calligraphy_columns = filter_calligraphy_columns(
         split_cols,
         min_chars=config.get("min_chars_per_col", 3),
-        min_char_width=config.get("min_char_width", 150),
-        min_char_height=config.get("min_char_height", 150)
+        min_col_width=config.get("min_col_width", 130)
     )
     print(f"[过滤] 保留 {len(calligraphy_columns)} 个书法列")
 
     all_characters = []
     for new_col_idx, (old_col_idx, x_min, x_max, chars) in enumerate(calligraphy_columns):
         sorted_chars = sorted(chars, key=lambda c: c[2])
+        claimed_boxes = []  # 每列独立的声明列表，从上到下处理
         
         # 检测遗漏字符
         missing_chars = detect_missing_chars_in_gaps(
@@ -592,8 +503,12 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
                 gray, cx_min, cx_max, cy_min, cy_max,
                 binary_threshold=config.get("binary_threshold", 140),
                 padding=config.get("bbox_padding", 5),
-                exclude_boxes=punctuation_boxes
+                exclude_boxes=punctuation_boxes,
+                claimed_regions=claimed_boxes
             )
+            
+            # Claim this refined box so subsequent chars don't steal its components
+            claimed_boxes.append((new_x, new_y, new_x + new_w, new_y + new_h))
             
             area = new_w * new_h
             char_img = gray[new_y:new_y+new_h, new_x:new_x+new_w]
