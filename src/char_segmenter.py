@@ -1,4 +1,4 @@
-"""单字切割模块：OCR定位 + 连通域精确裁剪（不重叠）"""
+"""单字切割模块 v12：OCR定位 + 连通域精确裁剪"""
 import os
 import cv2
 import numpy as np
@@ -75,17 +75,17 @@ def get_ocr_char_boxes(gray: np.ndarray) -> list:
         return []
 
 
-def refine_char_bbox_constrained(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max: int,
-                                  neighbor_y_min: int, neighbor_y_max: int,
-                                  binary_threshold: int = 140, padding: int = 5) -> tuple:
-    """以OCR框为中心，用连通域精确裁剪字符，但限制不超出相邻字符边界"""
+def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max: int,
+                     binary_threshold: int = 140, padding: int = 5,
+                     search_margin_x: int = 40, search_margin_y: int = 60,
+                     merge_radius: int = 80) -> tuple:
+    """以OCR框为中心，用连通域精确裁剪字符"""
     h, w = gray.shape
     
-    # 搜索范围限制在相邻字符之间
-    search_y1 = max(0, neighbor_y_min)
-    search_y2 = min(h, neighbor_y_max)
-    search_x1 = max(0, x_min - 20)
-    search_x2 = min(w, x_max + 20)
+    search_x1 = max(0, x_min - search_margin_x)
+    search_x2 = min(w, x_max + search_margin_x)
+    search_y1 = max(0, y_min - search_margin_y)
+    search_y2 = min(h, y_max + search_margin_y)
     
     roi = gray[search_y1:search_y2, search_x1:search_x2]
     _, binary = cv2.threshold(roi, binary_threshold, 255, cv2.THRESH_BINARY)
@@ -115,8 +115,7 @@ def refine_char_bbox_constrained(gray: np.ndarray, x_min: int, x_max: int, y_min
         cx = x + bw // 2
         cy = y + bh // 2
         
-        # 合理合并半径
-        if abs(cx - center_x) < 80 and abs(cy - center_y) < 80:
+        if abs(cx - center_x) < merge_radius and abs(cy - center_y) < merge_radius:
             merged_x_min = min(merged_x_min, x)
             merged_y_min = min(merged_y_min, y)
             merged_x_max = max(merged_x_max, x + bw)
@@ -126,18 +125,10 @@ def refine_char_bbox_constrained(gray: np.ndarray, x_min: int, x_max: int, y_min
     if not found_any:
         return (x_min, y_min, x_max - x_min, y_max - y_min)
     
-    new_x_min = search_x1 + merged_x_min - padding
-    new_y_min = search_y1 + merged_y_min - padding
-    new_w = (merged_x_max - merged_x_min) + padding * 2
-    new_h = (merged_y_max - merged_y_min) + padding * 2
-    
-    # 严格限制不超出相邻字符边界
-    new_y_min = max(0, new_y_min, neighbor_y_min)
-    new_y_max = min(h, search_y1 + merged_y_max + padding, neighbor_y_max)
-    new_h = new_y_max - new_y_min
-    
-    new_x_min = max(0, new_x_min)
-    new_w = min(w - new_x_min, new_w)
+    new_x_min = max(0, search_x1 + merged_x_min - padding)
+    new_y_min = max(0, search_y1 + merged_y_min - padding)
+    new_w = min(w - new_x_min, (merged_x_max - merged_x_min) + padding * 2)
+    new_h = min(h - new_y_min, (merged_y_max - merged_y_min) + padding * 2)
     
     return (new_x_min, new_y_min, new_w, new_h)
 
@@ -262,22 +253,8 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
         sorted_chars = sorted(chars, key=lambda c: c[2])
 
         for row_idx, (cx_min, cx_max, cy_min, cy_max, text, score, line_idx, char_idx) in enumerate(sorted_chars):
-            # 计算相邻字符边界
-            if row_idx == 0:
-                neighbor_y_min = 0
-            else:
-                prev_char = sorted_chars[row_idx - 1]
-                neighbor_y_min = (prev_char[3] + cy_min) // 2
-            
-            if row_idx == len(sorted_chars) - 1:
-                neighbor_y_max = h
-            else:
-                next_char = sorted_chars[row_idx + 1]
-                neighbor_y_max = (cy_max + next_char[2]) // 2
-            
-            new_x, new_y, new_w, new_h = refine_char_bbox_constrained(
+            new_x, new_y, new_w, new_h = refine_char_bbox(
                 gray, cx_min, cx_max, cy_min, cy_max,
-                neighbor_y_min, neighbor_y_max,
                 binary_threshold=config.get("binary_threshold", 140),
                 padding=config.get("bbox_padding", 5)
             )

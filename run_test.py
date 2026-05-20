@@ -1,4 +1,4 @@
-"""测试脚本：以单页为例运行完整切割流程 v15"""
+"""测试脚本：以单页为例运行完整切割流程 v12"""
 import os
 import sys
 import cv2
@@ -25,7 +25,7 @@ from src.char_segmenter import (
 
 def main():
     print("=" * 60)
-    print("单字切割测试 v15 (内容裁剪 + OCR单字框 + 精确裁剪)")
+    print("单字切割测试 v12 (内容裁剪 + OCR定位 + 连通域精确裁剪)")
     print("=" * 60)
 
     page_num = TEST_PAGE_INDEX + 1  # 转为1-based
