@@ -49,16 +49,17 @@ def detect_main_content_bbox(gray: np.ndarray, min_density_ratio: float = 0.15, 
 
 
 def get_ocr_char_boxes(gray: np.ndarray) -> list:
-    """获取OCR检测到的字符框"""
+    """获取OCR检测到的字符框（按行分组，返回单字级别）"""
     try:
         from rapidocr import RapidOCR
         ocr = RapidOCR()
         result = ocr(gray, return_word_box=True)
 
         all_chars = []
-        for line_idx, word_group in enumerate(result.word_results):
-            char_idx = 0
-            for item in word_group:
+        for line_idx, line_chars in enumerate(result.word_results):
+            if not line_chars:
+                continue
+            for char_idx, item in enumerate(line_chars):
                 if isinstance(item, tuple) and len(item) == 3:
                     char_text, char_score, char_box = item
                     x_coords = [p[0] for p in char_box]
@@ -68,7 +69,6 @@ def get_ocr_char_boxes(gray: np.ndarray) -> list:
                     y_min = int(min(y_coords))
                     y_max = int(max(y_coords))
                     all_chars.append((x_min, x_max, y_min, y_max, char_text, char_score, line_idx, char_idx))
-                    char_idx += 1
         return all_chars
     except Exception as e:
         print(f"[OCR] 获取单字框失败: {e}")
@@ -321,10 +321,10 @@ def filter_calligraphy_columns(columns: list, min_chars: int = 2,
     # Second pass: merge small chars from nearby columns into main columns
     # Or keep small char columns if they are close to a main column
     processed_small_cols = set()
-    for main_idx, main_x_min, main_x_max, main_chars in main_cols:
+    for i, (main_col_idx, main_x_min, main_x_max, main_chars) in enumerate(main_cols):
         # Find small char columns that overlap or are adjacent to this main column
         for col_idx, x_min, x_max, chars in columns:
-            if col_idx == main_idx:
+            if col_idx == main_col_idx:
                 continue
             
             # Check x-overlap or proximity
@@ -348,7 +348,7 @@ def filter_calligraphy_columns(columns: list, min_chars: int = 2,
                         # Re-sort by y
                         merged_chars.sort(key=lambda c: c[2])
                         # Update main column
-                        main_cols[main_idx] = (main_idx, min(main_x_min, x_min), max(main_x_max, x_max), merged_chars)
+                        main_cols[i] = (main_col_idx, min(main_x_min, x_min), max(main_x_max, x_max), merged_chars)
                         processed_small_cols.add(col_idx)
 
     # Add main columns to result
