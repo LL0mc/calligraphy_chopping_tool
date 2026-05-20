@@ -78,8 +78,9 @@ def get_ocr_char_boxes(gray: np.ndarray) -> list:
 def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max: int,
                      binary_threshold: int = 140, padding: int = 5,
                      search_margin_x: int = 40, search_margin_y: int = 60,
-                     merge_radius: int = 80) -> tuple:
-    """以OCR框为中心，用连通域精确裁剪字符"""
+                     merge_radius: int = 80,
+                     exclude_boxes: list = None) -> tuple:
+    """以OCR框为中心，用连通域精确裁剪字符，排除标点区域"""
     h, w = gray.shape
     
     search_x1 = max(0, x_min - search_margin_x)
@@ -89,6 +90,15 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
     
     roi = gray[search_y1:search_y2, search_x1:search_x2]
     _, binary = cv2.threshold(roi, binary_threshold, 255, cv2.THRESH_BINARY)
+    
+    if exclude_boxes:
+        for ex_x1, ex_y1, ex_w, ex_h in exclude_boxes:
+            rx1 = max(0, ex_x1 - search_x1)
+            ry1 = max(0, ex_y1 - search_y1)
+            rx2 = min(roi.shape[1], ex_x1 + ex_w - search_x1)
+            ry2 = min(roi.shape[0], ex_y1 + ex_h - search_y1)
+            if rx2 > rx1 and ry2 > ry1:
+                binary[ry1:ry2, rx1:rx2] = 0
     
     num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
     
@@ -209,6 +219,119 @@ def filter_calligraphy_columns(columns: list, min_chars: int = 2,
     return result
 
 
+def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: int, x_max: int,
+                                  gap_threshold: int = 100, binary_threshold: int = 140,
+                                  min_area: int = 500) -> list:
+    """在字符间隙中检测遗漏的字符"""
+    missing = []
+    h, w = gray.shape
+    
+    for i in range(len(sorted_chars) - 1):
+        curr = sorted_chars[i]
+        next_char = sorted_chars[i + 1]
+        
+        gap_start = curr[3]  # y_max of current
+        gap_end = next_char[2]  # y_min of next
+        gap_size = gap_end - gap_start
+        
+        if gap_size < gap_threshold:
+            continue
+        
+        # Extract gap region
+        search_x1 = max(0, x_min - 20)
+        search_x2 = min(w, x_max + 20)
+        roi = gray[gap_start:gap_end, search_x1:search_x2]
+        
+        # Check dark pixel ratio
+        dark_mask = roi < binary_threshold
+        dark_ratio = np.sum(dark_mask) / dark_mask.size
+        
+        if dark_ratio < 0.2:
+            continue
+        
+        # Connected component analysis
+        _, binary = cv2.threshold(roi, binary_threshold, 255, cv2.THRESH_BINARY)
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
+        
+        # Find significant components
+        candidates = []
+        for j in range(1, num_labels):
+            area = stats[j, cv2.CC_STAT_AREA]
+            if area < min_area:
+                continue
+            
+            x = stats[j, cv2.CC_STAT_LEFT] + search_x1
+            y = stats[j, cv2.CC_STAT_TOP] + gap_start
+            bw = stats[j, cv2.CC_STAT_WIDTH]
+            bh = stats[j, cv2.CC_STAT_HEIGHT]
+            
+            # Check if this component is within the column's x range
+            if x + bw < x_min - 10 or x > x_max + 10:
+                continue
+            
+            # Filter by aspect ratio (characters should be roughly square)
+            aspect_ratio = bw / bh if bh > 0 else 0
+            if aspect_ratio < 0.3 or aspect_ratio > 3.0:
+                continue
+            
+            # Filter by size (should be similar to other characters)
+            if bw < 30 or bh < 30:
+                continue
+            
+            candidates.append((x, x + bw, y, y + bh, area, bw, bh))
+        
+        # Merge nearby candidates (might be parts of same character)
+        if not candidates:
+            continue
+        
+        # Use 2D distance to merge candidates
+        merged = []
+        used = [False] * len(candidates)
+        
+        for i in range(len(candidates)):
+            if used[i]:
+                continue
+            
+            current = candidates[i]
+            merged_box = list(current[:4])  # x1, x2, y1, y2
+            merged_area = current[4]
+            merged_bw = current[5]
+            merged_bh = current[6]
+            used[i] = True
+            
+            for j in range(i + 1, len(candidates)):
+                if used[j]:
+                    continue
+                
+                other = candidates[j]
+                # Calculate 2D distance between centers
+                center1_x = (current[0] + current[1]) / 2
+                center1_y = (current[2] + current[3]) / 2
+                center2_x = (other[0] + other[1]) / 2
+                center2_y = (other[2] + other[3]) / 2
+                
+                distance = ((center1_x - center2_x) ** 2 + (center1_y - center2_y) ** 2) ** 0.5
+                
+                # If distance is small, merge
+                if distance < 50:  # Threshold for merging
+                    merged_box[0] = min(merged_box[0], other[0])
+                    merged_box[1] = max(merged_box[1], other[1])
+                    merged_box[2] = min(merged_box[2], other[2])
+                    merged_box[3] = max(merged_box[3], other[3])
+                    merged_area += other[4]
+                    merged_bw = merged_box[1] - merged_box[0]
+                    merged_bh = merged_box[3] - merged_box[2]
+                    used[j] = True
+            
+            merged.append((merged_box[0], merged_box[1], merged_box[2], merged_box[3], merged_area, merged_bw, merged_bh))
+        
+        # Add merged candidates as missing characters
+        for x1, x2, y1, y2, area, bw, bh in merged:
+            missing.append((x1, x2, y1, y2, '?', 0.0, -1, -1))
+    
+    return missing
+
+
 def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     """主流程：OCR定位 + 连通域精确裁剪（不重叠）"""
     if config is None:
@@ -230,9 +353,16 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     ) for c in all_chars]
     
     punctuation = set('（）()[]【】{}《》<>""\'\'.,;:!?、。！？；：，．')
-    all_chars = [c for c in all_chars if c[4] not in punctuation and len(c[4].strip()) > 0]
+    punctuation_boxes = []
+    filtered_chars = []
+    for c in all_chars:
+        if c[4] in punctuation or len(c[4].strip()) == 0:
+            punctuation_boxes.append((c[0], c[2], c[1] - c[0], c[3] - c[2]))
+        else:
+            filtered_chars.append(c)
+    all_chars = filtered_chars
     
-    print(f"[OCR] 检测到 {len(all_chars)} 个单字（已过滤标点）")
+    print(f"[OCR] 检测到 {len(all_chars)} 个单字（已过滤标点，排除 {len(punctuation_boxes)} 个标点区域）")
 
     columns = classify_columns(all_chars)
     print(f"[分列] 检测到 {len(columns)} 列")
@@ -251,6 +381,18 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     all_characters = []
     for new_col_idx, (old_col_idx, x_min, x_max, chars) in enumerate(calligraphy_columns):
         sorted_chars = sorted(chars, key=lambda c: c[2])
+        
+        # 检测遗漏字符
+        missing_chars = detect_missing_chars_in_gaps(
+            gray, sorted_chars, x_min, x_max,
+            gap_threshold=config.get("gap_threshold", 100),
+            binary_threshold=config.get("binary_threshold", 140),
+            min_area=config.get("missing_char_min_area", 500)
+        )
+        
+        if missing_chars:
+            print(f"[遗漏检测] 列 {new_col_idx + 1} 发现 {len(missing_chars)} 个遗漏字符")
+            sorted_chars = sorted(sorted_chars + missing_chars, key=lambda c: c[2])
 
         for row_idx, (cx_min, cx_max, cy_min, cy_max, text, score, line_idx, char_idx) in enumerate(sorted_chars):
             new_x, new_y, new_w, new_h = refine_char_bbox(
