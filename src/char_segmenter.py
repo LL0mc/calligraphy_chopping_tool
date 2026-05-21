@@ -135,9 +135,11 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
         if is_punct:
             continue
         
-        # Check distance to center
+        # Check distance to center.
+        # Components that overlap the OCR box are kept regardless of distance
+        # (they're part of the same character, e.g. far stroke tips).
         dist = ((cx - center_x) ** 2 + (cy - center_y) ** 2) ** 0.5
-        if dist < merge_radius:
+        if dist < merge_radius or overlap_ocr:
             # Skip components already claimed by a previous character in the same column
             if claimed_regions:
                 gcx = search_x1 + cx
@@ -166,33 +168,29 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
     new_w = min(w - new_x_min, (merged_x_max - merged_x_min) + padding * 2)
     new_h = min(h - new_y_min, (merged_y_max - merged_y_min) + padding * 2)
     
-    # Post-processing: If the refined box is much larger than the OCR box, fall back to the largest component's box
+    # Post-processing: If the refined box is much larger than the OCR box,
+    # exclude outer-background components (those touching ROI boundary)
     ocr_w = x_max - x_min
     ocr_h = y_max - y_min
     ocr_area = ocr_w * ocr_h
     new_area = new_w * new_h
     
     if new_area > ocr_area * 2.0 and ocr_area > 1000:
-        largest = max(candidates, key=lambda c: c[4])
-        lx1 = search_x1 + largest[0]
-        ly1 = search_y1 + largest[1]
-        lx2 = lx1 + largest[2]
-        ly2 = ly1 + largest[3]
-        
-        inter_x1 = max(lx1, x_min)
-        inter_y1 = max(ly1, y_min)
-        inter_x2 = min(lx2, x_max)
-        inter_y2 = min(ly2, y_max)
-        
-        if inter_x2 > inter_x1 and inter_y2 > inter_y1:
-            inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
-            comp_area = largest[2] * largest[3]
-            
-            if inter_area > comp_area * 0.5:
-                new_x_min = max(0, lx1 - padding)
-                new_y_min = max(0, ly1 - padding)
-                new_w = min(w - new_x_min, largest[2] + padding * 2)
-                new_h = min(h - new_y_min, largest[3] + padding * 2)
+        internal = [c for c in candidates
+                    if c[0] > 0 and c[1] > 0
+                    and c[0] + c[2] < roi_w
+                    and c[1] + c[3] < roi_h]
+        if internal:
+            nmi_x = min(c[0] for c in internal)
+            nmi_y = min(c[1] for c in internal)
+            nmx_x = max(c[0] + c[2] for c in internal)
+            nmx_y = max(c[1] + c[3] for c in internal)
+            new_x_min = max(0, search_x1 + nmi_x - padding)
+            new_y_min = max(0, search_y1 + nmi_y - padding)
+            new_w = min(w - new_x_min, (nmx_x - nmi_x) + padding * 2)
+            new_h = min(h - new_y_min, (nmx_y - nmi_y) + padding * 2)
+    
+
     
     return (new_x_min, new_y_min, new_w, new_h)
 
@@ -233,7 +231,7 @@ def classify_columns(all_chars: list) -> list:
 
 
 def split_mixed_columns(columns: list, size_threshold: int = 120) -> list:
-    """拆分混合列（大字和小字）"""
+    """拆分混合列（大字和小字），行内注释（小字与大字x范围重叠）合并回主列"""
     result = []
     for col_idx, x_min, x_max, chars in columns:
         large_chars = []
@@ -245,6 +243,17 @@ def split_mixed_columns(columns: list, size_threshold: int = 120) -> list:
                 large_chars.append(c)
             else:
                 small_chars.append(c)
+
+        if small_chars and large_chars:
+            lx_min = min(c[0] for c in large_chars)
+            lx_max = max(c[1] for c in large_chars)
+            sx_min = min(c[0] for c in small_chars)
+            sx_max = max(c[1] for c in small_chars)
+            overlap = min(lx_max, sx_max) - max(lx_min, sx_min)
+            if overlap > 0 and overlap >= (sx_max - sx_min) * 0.5:
+                large_chars.extend(small_chars)
+                large_chars.sort(key=lambda c: c[2])
+                small_chars = []
 
         if large_chars:
             lx_min = min(c[0] for c in large_chars)
