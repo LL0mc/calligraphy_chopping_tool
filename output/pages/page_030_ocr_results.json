@@ -124,11 +124,11 @@
     "col": 1,
     "row": 12,
     "text": "作",
-    "confidence": 0.90277,
+    "confidence": 0.91569,
     "x": 616,
     "y": 2376,
     "w": 145,
-    "h": 169,
+    "h": 172,
     "expand_strategy": "square"
   },
   {
@@ -162,6 +162,17 @@
     "y": 2935,
     "w": 142,
     "h": 192,
+    "expand_strategy": "square"
+  },
+  {
+    "col": 1,
+    "row": 16,
+    "text": "",
+    "confidence": 0.0,
+    "x": 607,
+    "y": 3471,
+    "w": 156,
+    "h": 156,
     "expand_strategy": "square"
   },
   {
@@ -234,11 +245,33 @@
     "col": 2,
     "row": 7,
     "text": "乡",
-    "confidence": 0.99972,
+    "confidence": 0.99986,
     "x": 933,
     "y": 1558,
-    "w": 82,
+    "w": 163,
     "h": 168,
+    "expand_strategy": "square"
+  },
+  {
+    "col": 2,
+    "row": 8,
+    "text": "",
+    "confidence": 0.0,
+    "x": 1049,
+    "y": 1721,
+    "w": 33,
+    "h": 35,
+    "expand_strategy": "square"
+  },
+  {
+    "col": 2,
+    "row": 9,
+    "text": "",
+    "confidence": 0.0,
+    "x": 908,
+    "y": 3476,
+    "w": 147,
+    "h": 147,
     "expand_strategy": "square"
   },
   {
@@ -332,12 +365,12 @@
   {
     "col": 3,
     "row": 9,
-    "text": "",
-    "confidence": 0.0,
+    "text": "登",
+    "confidence": 0.97996,
     "x": 1187,
     "y": 1947,
     "w": 183,
-    "h": 132,
+    "h": 158,
     "expand_strategy": "square"
   },
   {
@@ -349,6 +382,17 @@
     "y": 2152,
     "w": 152,
     "h": 131,
+    "expand_strategy": "square"
+  },
+  {
+    "col": 3,
+    "row": 11,
+    "text": "",
+    "confidence": 0.0,
+    "x": 1195,
+    "y": 3474,
+    "w": 150,
+    "h": 150,
     "expand_strategy": "square"
   },
   {
@@ -409,12 +453,12 @@
   {
     "col": 4,
     "row": 6,
-    "text": "7",
-    "confidence": 0.95535,
+    "text": "》",
+    "confidence": 0.83353,
     "x": 1487,
-    "y": 1380,
+    "y": 1336,
     "w": 169,
-    "h": 137,
+    "h": 181,
     "expand_strategy": "square"
   },
   {
@@ -442,12 +486,12 @@
   {
     "col": 4,
     "row": 9,
-    "text": "",
-    "confidence": 0.0,
+    "text": "?",
+    "confidence": 0.7833,
     "x": 1485,
     "y": 1935,
-    "w": 163,
-    "h": 156,
+    "w": 198,
+    "h": 181,
     "expand_strategy": "square"
   },
   {
@@ -459,6 +503,17 @@
     "y": 2141,
     "w": 125,
     "h": 135,
+    "expand_strategy": "square"
+  },
+  {
+    "col": 4,
+    "row": 11,
+    "text": "",
+    "confidence": 0.0,
+    "x": 1483,
+    "y": 3471,
+    "w": 157,
+    "h": 157,
     "expand_strategy": "square"
   },
   {
@@ -542,11 +597,11 @@
     "col": 5,
     "row": 8,
     "text": "锁",
-    "confidence": 0.99931,
+    "confidence": 0.9991,
     "x": 1772,
     "y": 1745,
     "w": 156,
-    "h": 156,
+    "h": 165,
     "expand_strategy": "square"
   },
   {
@@ -569,6 +624,17 @@
     "y": 2140,
     "w": 158,
     "h": 140,
+    "expand_strategy": "square"
+  },
+  {
+    "col": 5,
+    "row": 11,
+    "text": "",
+    "confidence": 0.0,
+    "x": 1777,
+    "y": 3475,
+    "w": 148,
+    "h": 148,
     "expand_strategy": "square"
   },
   {
@@ -597,11 +663,11 @@
     "col": 6,
     "row": 3,
     "text": "梁",
-    "confidence": 0.99098,
+    "confidence": 0.93227,
     "x": 2071,
     "y": 808,
-    "w": 154,
-    "h": 161,
+    "w": 216,
+    "h": 180,
     "expand_strategy": "square"
   },
   {
@@ -696,11 +762,22 @@
     "col": 6,
     "row": 12,
     "text": "巷",
-    "confidence": 0.61803,
+    "confidence": 0.82522,
     "x": 2099,
     "y": 2500,
     "w": 133,
-    "h": 127,
+    "h": 165,
+    "expand_strategy": "square"
+  },
+  {
+    "col": 6,
+    "row": 13,
+    "text": "",
+    "confidence": 0.0,
+    "x": 2076,
+    "y": 3474,
+    "w": 150,
+    "h": 150,
     "expand_strategy": "square"
   }
 ]
