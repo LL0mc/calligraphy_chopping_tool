@@ -105,39 +105,39 @@ HTML = r"""<!DOCTYPE html>
 <title>字帖校对 - 第_PAGE_页</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Microsoft YaHei',sans-serif;background:#1a1a2e;color:#eee;padding:16px}
-.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
-.toolbar button,.toolbar input{padding:6px 12px;border-radius:4px;border:none;background:#0f3460;color:#fff;cursor:pointer}
-.toolbar button:hover{background:#16213e}
-.container{display:flex;gap:16px}
-.left{flex:3}
+body{font-family:'Microsoft YaHei',sans-serif;background:#1a1612;color:#d4c9b8;padding:12px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.toolbar span{color:#b0a08e}
+.toolbar button,.toolbar input{padding:5px 12px;border-radius:4px;border:none;background:#3a3028;color:#d4c9b8;cursor:pointer}
+.toolbar button:hover{background:#4a3f35}
+.container{display:flex;gap:12px}
+.left{flex:1;text-align:center}
 .img-wrap{position:relative;display:inline-block;max-width:100%;max-height:88vh}
-.img-wrap img{max-width:100%;max-height:88vh;height:auto;display:block;border-radius:8px}
+.img-wrap img{max-width:100%;max-height:88vh;height:auto;display:block;border-radius:6px}
 #cv{position:absolute;top:0;left:0;cursor:crosshair;z-index:1}
-.right{flex:2;display:flex;flex-direction:column;gap:8px}
-.fi{width:100%;padding:6px;background:#1a1a2e;color:#fff;border:1px solid #333;border-radius:4px}
-.tw{overflow-y:auto;max-height:50vh}
+.right{width:520px;display:flex;flex-direction:column;gap:8px}
+.fi{width:100%;padding:6px 10px;background:#2a2520;color:#d4c9b8;border:1px solid #4a3f35;border-radius:4px}
+.fi:focus{outline:none;border-color:#8b7355}
+.tw{overflow-y:auto;max-height:35vh}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:#0f3460;padding:6px;text-align:left;position:sticky;top:0}
-td{padding:4px 6px;border-bottom:1px solid #333;cursor:pointer}
-tr:hover{background:#16213e}
-tr.sel{background:#1a5276}
-.s0{color:#7dcea0}.s1{color:#85c1e9}
-.ep{background:#16213e;padding:16px;border-radius:8px}
-.ep input{background:#1a1a2e;color:#fff;border:1px solid #333;padding:4px 8px;border-radius:4px;margin:2px}
-.w80{width:80px}
-.bsv{background:#27ae60;padding:6px 16px;border-radius:4px;border:none;cursor:pointer;color:#fff}
-.bsv:hover{background:#2ecc71}
-.bnv{background:#2980b9;padding:6px 16px;border-radius:4px;border:none;cursor:pointer;color:#fff}
-.bnv:hover{background:#3498db}
-.bdr{background:#c0392b;padding:6px 16px;border-radius:4px;border:none;cursor:pointer;color:#fff}
-.bdr:hover{background:#e74c3c}
-.bad{background:#27ae60;padding:6px 16px;border-radius:4px;border:none;cursor:pointer;color:#fff}
-.bad:hover{background:#2ecc71}
-.msg{padding:4px 8px;border-radius:4px;display:inline-block}
-.msg.ok{background:#1a5276;color:#7dcea0}
-#crop{max-width:100px;max-height:100px;border:1px solid #555;border-radius:4px;vertical-align:middle;background:#111}
-.h{color:#888;font-size:12px;margin-top:4px}
+th{background:#3a3028;padding:5px 6px;text-align:left;position:sticky;top:0;color:#b0a08e}
+td{padding:3px 6px;border-bottom:1px solid #2a2520;cursor:pointer}
+tr:hover{background:#2a2520}
+tr.sel{background:#3a3028}
+.ep{background:#2a2520;padding:12px;border-radius:6px}
+.ep input{background:#1a1612;color:#d4c9b8;border:1px solid #4a3f35;padding:5px 8px;border-radius:4px;margin:2px}
+.ep input:focus{outline:none;border-color:#8b7355}
+.w140{width:140px}
+.bnv{background:#4a3f35;padding:5px 14px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8}
+.bnv:hover{background:#5c4f43}
+.bdr{background:#5c2e2e;padding:5px 14px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8}
+.bdr:hover{background:#7a3e3e}
+.bad{background:#2d4a3e;padding:5px 14px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8}
+.bad:hover{background:#3d5c4e}
+.msg{padding:3px 8px;border-radius:4px;display:inline-block;color:#b0a08e}
+.msg.ok{background:#2d4a3e;color:#a8c9b8}
+.para{background:#2a2520;padding:10px;border-radius:6px;font-size:14px;line-height:1.5;word-break:break-all;max-height:18vh;overflow-y:auto}
+.h{color:#8a7a68;font-size:12px;margin-top:4px}
 </style>
 </head>
 <body>
@@ -146,7 +146,7 @@ tr.sel{background:#1a5276}
   <button onclick="loadPage()">加载</button>
   <span>选中: <b id="sl">-</b> / _TOTAL_</span>
   <span id="sm" style="color:#888;font-size:13px"></span>
-  <button onclick="submitPage()" style="background:#8e44ad">提交</button>
+  <button onclick="submitPage()" style="background:#6b5b4a;padding:5px 14px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8">提交</button>
 </div>
 <div class="container">
   <div class="left">
@@ -156,45 +156,45 @@ tr.sel{background:#1a5276}
     </div>
   </div>
   <div class="right">
-    <input class="fi" id="fi" placeholder="筛选文字/OCR..." oninput="ft()">
-    <div class="tw"><table id="tbl">
-      <thead><tr><th>#</th><th>列</th><th>行</th><th>文字</th><th>置信</th><th>X</th><th>Y</th></tr></thead>
-      <tbody id="tb"></tbody>
-    </table></div>
     <div class="ep">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <img id="crop" src="" alt="裁剪">
-        <div>
+      <div style="display:flex;align-items:flex-start;gap:12px;min-height:100px">
+        <img id="crop" src="" alt="裁剪" style="width:90px;height:90px;object-fit:contain;border:1px solid #555;border-radius:4px;background:#111">
+        <div style="flex:1">
           <div><span style="color:#aaa">文字:</span>
-            <input id="et" class="w80">
+            <input id="et" class="w140" onkeydown="if(event.key==='Enter'){event.preventDefault();saveWait(function(){document.getElementById('msg').className='msg ok';document.getElementById('msg').textContent='已保存';});}">
             <span style="color:#888;margin-left:8px">OCR: <span id="eo">-</span></span>
           </div>
           <div style="margin-top:4px">
-            <span style="color:#888;font-size:12px">X</span><input id="ex" class="w80" type="number">
-            <span style="color:#888;font-size:12px">Y</span><input id="ey" class="w80" type="number">
-            <span style="color:#888;font-size:12px">W</span><input id="ew" class="w80" type="number">
-            <span style="color:#888;font-size:12px">H</span><input id="eh" class="w80" type="number">
+            <span style="color:#888;font-size:12px">X</span><input id="ex" class="w140" type="number">
+            <span style="color:#888;font-size:12px">Y</span><input id="ey" class="w140" type="number">
+            <span style="color:#888;font-size:12px">W</span><input id="ew" class="w140" type="number">
+            <span style="color:#888;font-size:12px">H</span><input id="eh" class="w140" type="number">
           </div>
         </div>
       </div>
       <div style="margin-top:6px">
-        <button class="bsv" onclick="sv()">保存</button>
         <button class="bnv" onclick="mv(-1)">上一</button>
         <button class="bnv" onclick="mv(1)">下一</button>
         <button class="bdr" onclick="delChar()">删除</button>
         <button class="bad" onclick="addChar()">新增</button>
         <span id="msg" class="msg"></span>
       </div>
-      <div class="h">拖拽方框边缘/角调整位置 | 点击图片上的框选中</div>
+      <div class="h">拖拽调整位置 | 回车保存 | 点击框切换 | 列号从右到左</div>
 <div style="font-size:11px;color:#888;margin-top:4px">
-  <span style="color:#b4dcff">█ 高置信</span>
-  <span style="color:#ffcc00">█ 中置信</span>
-  <span style="color:#ff4444">█ 低置信</span>
+  <span style="color:#b4dcff">█ 正常</span>
+  <span style="color:#ffcc00">█ 形状异常</span>
+  <span style="color:#ff4444">█ 低置信/?</span>
   <span style="color:#555">█ 空</span>
   <span style="color:#00c8ff">█ 已修正</span>
   <span style="color:#00ff00">█ 选中</span>
 </div>
     </div>
+    <div id="para" class="para"></div>
+    <input class="fi" id="fi" placeholder="筛选文字/OCR..." oninput="ft()">
+    <div class="tw"><table id="tbl">
+      <thead><tr><th>#</th><th>列</th><th>行</th><th>文字</th><th>置信</th><th>X</th><th>Y</th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table></div>
   </div>
 </div>
 <script>
@@ -205,20 +205,54 @@ var ds = null;
 var SCALE = _SCALE_;
 var PAGE = _PAGE_;
 
+function getSortedIndices() {
+  var si2 = [];
+  for (var i = 0; i < bx.length; i++) si2.push(i);
+  si2.sort(function(a,b){
+    if (bx[a].col !== bx[b].col) return bx[b].col - bx[a].col;
+    return bx[a].row - bx[b].row;
+  });
+  return si2;
+}
+
 function rt() {
   var tb = document.getElementById('tb');
   var h = '';
-  for (var i = 0; i < bx.length; i++) {
+  var mc = 1;
+  for (var i = 0; i < bx.length; i++) { if (bx[i].col > mc) mc = bx[i].col; }
+  var si2 = getSortedIndices();
+  for (var k = 0; k < si2.length; k++) {
+    var i = si2[k];
     var b = bx[i];
     var dt = b.corrected_text || b.text || '';
     var pc = Math.round(b.confidence * 100);
+    var dc = mc - b.col + 1;
     h += '<tr onclick="sc('+i+')" id="r'+i+'" class="'+(i===si?'sel':'')+'">'+
-      '<td>'+(i+1)+'</td><td>'+b.col+'</td><td>'+b.row+'</td>'+
+      '<td>'+(k+1)+'</td><td>'+dc+'</td><td>'+b.row+'</td>'+
       '<td>'+esc(dt)+'</td><td>'+pc+'%</td><td>'+Math.round(b.x/SCALE)+'</td><td>'+Math.round(b.y/SCALE)+'</td></tr>';
   }
   tb.innerHTML = h;
+  updatePara();
 }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function updatePara() {
+  var mc = 1;
+  for (var i = 0; i < bx.length; i++) { if (bx[i].col > mc) mc = bx[i].col; }
+  var lines = [];
+  for (var c = 1; c <= mc; c++) {
+    var items = [];
+    for (var i = 0; i < bx.length; i++) {
+      var b = bx[i];
+      if (mc - b.col + 1 !== c) continue;
+      items.push({row: b.row, text: b.corrected_text || b.text || ''});
+    }
+    items.sort(function(a,b){return a.row-b.row;});
+    var colText = items.map(function(x){return x.text;}).join('');
+    if (colText) lines.push(colText);
+  }
+  document.getElementById('para').textContent = lines.join(' | ');
+}
 
 function gs() {
   var img = document.getElementById('img');
@@ -226,59 +260,102 @@ function gs() {
 }
 
 function sc(idx) {
+  var os = si;
+  saveBg(os);
   si = idx;
   document.querySelectorAll('#tb tr').forEach(function(r){r.classList.remove('sel');});
   var r = document.getElementById('r'+idx);
   if (r) r.classList.add('sel');
+  var si2 = getSortedIndices();
+  var pos = -1;
+  for (var k = 0; k < si2.length; k++) { if (si2[k] === idx) { pos = k+1; break; } }
   var b = bx[idx];
-  document.getElementById('sl').textContent = idx+1;
+  var label = b.corrected_text || b.text || '';
+  document.getElementById('sl').textContent = pos + ' (' + (idx+1) + ')';
   document.getElementById('sm').textContent = b.confidence ? '置信度 '+Math.round(b.confidence*100)+'%' : '';
-  document.getElementById('et').value = b.corrected_text ? b.corrected_text : b.text;
-  document.getElementById('eo').textContent = b.corrected_text || b.text || '(empty)';
+  document.getElementById('et').value = label;
+  document.getElementById('eo').textContent = label || '(empty)';
   document.getElementById('ex').value = Math.round(b.x / SCALE);
   document.getElementById('ey').value = Math.round(b.y / SCALE);
   document.getElementById('ew').value = Math.round(b.w / SCALE);
   document.getElementById('eh').value = Math.round(b.h / SCALE);
   document.getElementById('msg').className = 'msg';
   document.getElementById('msg').textContent = '';
-  cropImg();
-  dc();
+  cropImg(); dc(); updatePara();
 }
 
 function cropImg() {
   if (si < 0 || si >= bx.length) return;
   var b = bx[si];
   var img = document.getElementById('img');
-  if (!img.complete) return;
-  var cv = document.createElement('canvas');
-  cv.width = Math.max(1, Math.round(b.w) + 2);
-  cv.height = Math.max(1, Math.round(b.h) + 2);
-  var ctx = cv.getContext('2d');
-  ctx.drawImage(img, b.x - 1, b.y - 1, b.w + 2, b.h + 2, 0, 0, cv.width, cv.height);
-  document.getElementById('crop').src = cv.toDataURL();
+  try {
+    var cv = document.createElement('canvas');
+    cv.width = Math.max(1, Math.round(b.w) + 2);
+    cv.height = Math.max(1, Math.round(b.h) + 2);
+    var ctx = cv.getContext('2d');
+    ctx.drawImage(img, b.x - 1, b.y - 1, b.w + 2, b.h + 2, 0, 0, cv.width, cv.height);
+    document.getElementById('crop').src = cv.toDataURL();
+  } catch(e) {}
 }
 
-function sv(cb) {
-  var b = bx[si];
-  var data = {p:PAGE, i:si, t:document.getElementById('et').value,
-    x:parseInt(document.getElementById('ex').value),
-    y:parseInt(document.getElementById('ey').value),
-    w:parseInt(document.getElementById('ew').value),
-    h:parseInt(document.getElementById('eh').value)};
-  fetch('/sv', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+function mv(dir) {
+  var si2 = getSortedIndices();
+  var pos = -1;
+  for (var k = 0; k < si2.length; k++) { if (si2[k] === si) { pos = k; break; } }
+  var np = pos + dir;
+  if (np >= 0 && np < si2.length) sc(si2[np]);
+}
+
+function saveBg(os) {
+  var val = document.getElementById('et').value;
+  var b = bx[os];
+  if (!b) return;
+  var cur = b.corrected_text || b.text || '';
+  if (val === cur) return;
+  var xi = parseInt(document.getElementById('ex').value);
+  var yi = parseInt(document.getElementById('ey').value);
+  var wi = parseInt(document.getElementById('ew').value);
+  var hi = parseInt(document.getElementById('eh').value);
+  if (isNaN(xi) || isNaN(yi) || isNaN(wi) || isNaN(hi)) return;
+  fetch('/sv', {method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({p:PAGE, i:os, t:val, x:xi, y:yi, w:wi, h:hi})})
     .then(function(r){return r.json();}).then(function(d){
-      document.getElementById('msg').textContent = d.m;
-      document.getElementById('msg').className = d.ok ? 'msg ok' : 'msg';
       if (d.ok) {
-        b.text = d.t;
-        b.corrected_text = '';
-        b.manual_corrected = true;
-        b.x = d.xs*SCALE; b.y = d.ys*SCALE; b.w = d.ws*SCALE; b.h = d.hs*SCALE;
-        rt(); dc(); cropImg();
-        if (cb) cb();
+        var bi = bx[os];
+        bi.text = d.t; bi.corrected_text = ''; bi.manual_corrected = true;
+        bi.x = d.xs*SCALE; bi.y = d.ys*SCALE; bi.w = d.ws*SCALE; bi.h = d.hs*SCALE;
+        rt();
       }
+    }).catch(function(e){});
+}
+
+function saveWait(cb) {
+  var b = bx[si];
+  if (!b) { if(cb) cb(); return; }
+  var val = document.getElementById('et').value;
+  var cur = b.corrected_text || b.text || '';
+  if (val === cur) { if(cb) cb(); return; }
+  var xi = parseInt(document.getElementById('ex').value);
+  var yi = parseInt(document.getElementById('ey').value);
+  var wi = parseInt(document.getElementById('ew').value);
+  var hi = parseInt(document.getElementById('eh').value);
+  if (isNaN(xi) || isNaN(yi) || isNaN(wi) || isNaN(hi)) { if(cb) cb(); return; }
+  fetch('/sv', {method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({p:PAGE, i:si, t:val, x:xi, y:yi, w:wi, h:hi})})
+    .then(function(r){return r.json();}).then(function(d){
+      document.getElementById('msg').className = d.ok ? 'msg ok' : 'msg';
+      document.getElementById('msg').textContent = d.m;
+      if (d.ok) {
+        var bi = bx[si];
+        bi.text = d.t; bi.corrected_text = ''; bi.manual_corrected = true;
+        bi.x = d.xs*SCALE; bi.y = d.ys*SCALE; bi.w = d.ws*SCALE; bi.h = d.hs*SCALE;
+        rt(); cropImg();
+      }
+      if (cb) cb();
     }).catch(function(e){ document.getElementById('msg').textContent = '请求失败: '+e; });
 }
+
+function sv(cb) { saveWait(cb); }
 
 function delChar() {
   fetch('/del', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE, i:si})})
@@ -325,17 +402,14 @@ function addChar() {
 }
 
 function submitPage() {
-  if (!confirm('提交第'+PAGE+'页审查结果，进入下一页？')) return;
-  fetch('/submit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE})})
-    .then(function(r){return r.json();}).then(function(d){
-      if (d.ok) { window.location.href = '/?p=' + (PAGE + 1); }
-      else { document.getElementById('msg').textContent = '提交失败'; }
-    });
-}
-
-function mv(dir) {
-  var i = si + dir;
-  if (i >= 0 && i < bx.length) sc(i);
+  saveWait(function(){
+    if (!confirm('提交第'+PAGE+'页审查结果，进入下一页？')) return;
+    fetch('/submit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE})})
+      .then(function(r){return r.json();}).then(function(d){
+        if (d.ok) { window.location.href = '/?p=' + (PAGE + 1); }
+        else { document.getElementById('msg').textContent = '提交失败'; }
+      });
+  });
 }
 
 function ft() {
@@ -344,37 +418,14 @@ function ft() {
     r.style.display = q ? (r.textContent.includes(q) ? '' : 'none') : '';
   });
 }
-
-function setupCanvas() {
-  var img = document.getElementById('img');
-  var cv = document.getElementById('cv');
-  function resize() {
-    if (img.naturalWidth > 0 && img.offsetWidth > 0) {
-      var w = img.offsetWidth, h = img.offsetHeight;
-      cv.style.width = w + 'px';
-      cv.style.height = h + 'px';
-      cv.width = w;
-      cv.height = h;
-      if (cv.width > 0 && cv.height > 0) dc();
-    }
-  }
-  resize();
-  if (img.complete) resize();
-  img.onload = resize;
-  window.addEventListener('resize', resize);
-  cv.addEventListener('mousedown', md);
-  cv.addEventListener('mousemove', mm);
-  cv.addEventListener('mouseup', mu);
-  cv.addEventListener('mouseleave', mu);
-}
-
 function dc() {
   var cv = document.getElementById('cv');
   var ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, cv.width, cv.height);
   if (bx.length === 0) return;
   var s = gs();
-  // Draw all boxes
+  var si2 = getSortedIndices();
+  var dn = {}; for (var k = 0; k < si2.length; k++) dn[si2[k]] = k + 1;
   for (var i = 0; i < bx.length; i++) {
     var b = bx[i];
     var x = b.x/s, y = b.y/s, w = b.w/s, h = b.h/s;
@@ -384,11 +435,11 @@ function dc() {
       color = '#00ff00';
     } else if (b.manual_corrected) {
       color = '#00c8ff';
-    } else if (b.confidence < 0.01 || (b.text === '' && !b.corrected_text)) {
+    } else if (b.confidence < 0.01 && (b.text === '' || b.text === '?')) {
       color = '#555';
-    } else if (b.confidence < 0.6) {
+    } else if (b.text === '?' || b.confidence < 0.6) {
       color = '#ff4444';
-    } else if (b.confidence < 0.85) {
+    } else if (Math.max(w/h, h/w) > 2.5) {
       color = '#ffcc00';
     } else {
       color = '#b4dcff';
@@ -398,7 +449,7 @@ function dc() {
     ctx.strokeRect(x, y, w, h);
     ctx.fillStyle = color;
     ctx.font = '10px sans-serif';
-    ctx.fillText(i+1, x+2, y+10);
+    ctx.fillText(dn[i], x+2, y+10);
   }
   // Ghost during drag
   if (dr && ds) {
@@ -506,23 +557,25 @@ function mm(e) {
 
 function mu(e) {
   if (dr) {
-    fetch('/sv', {method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({p:PAGE, i:si,
-        t:document.getElementById('et').value,
-        x:parseInt(document.getElementById('ex').value),
-        y:parseInt(document.getElementById('ey').value),
-        w:parseInt(document.getElementById('ew').value),
-        h:parseInt(document.getElementById('eh').value)})})
-      .then(function(r){return r.json();}).then(function(d){
-        document.getElementById('msg').textContent = d.m;
-        document.getElementById('msg').className = d.ok ? 'msg ok' : 'msg';
-        if (d.ok) {
-          var b = bx[si];
-          b.text = d.t; b.corrected_text = ''; b.manual_corrected = true;
-          b.x = d.xs*SCALE; b.y = d.ys*SCALE; b.w = d.ws*SCALE; b.h = d.hs*SCALE;
-          rt(); cropImg(); dc();
-        }
-      });
+    var xi = parseInt(document.getElementById('ex').value);
+    var yi = parseInt(document.getElementById('ey').value);
+    var wi = parseInt(document.getElementById('ew').value);
+    var hi = parseInt(document.getElementById('eh').value);
+    if (!isNaN(xi) && !isNaN(yi) && !isNaN(wi) && !isNaN(hi)) {
+      fetch('/sv', {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({p:PAGE, i:si,
+          t:document.getElementById('et').value, x:xi, y:yi, w:wi, h:hi})})
+        .then(function(r){return r.json();}).then(function(d){
+          document.getElementById('msg').className = d.ok ? 'msg ok' : 'msg';
+          document.getElementById('msg').textContent = d.m;
+          if (d.ok) {
+            var b = bx[si];
+            b.text = d.t; b.corrected_text = ''; b.manual_corrected = true;
+            b.x = d.xs*SCALE; b.y = d.ys*SCALE; b.w = d.ws*SCALE; b.h = d.hs*SCALE;
+            rt(); cropImg(); dc();
+          }
+        });
+    }
   }
   dr = null; ds = null;
   dc();
@@ -532,7 +585,44 @@ function loadPage() {
   window.location.href = '/?p=' + document.getElementById('pi').value;
 }
 
-document.addEventListener('DOMContentLoaded', function(){ rt(); if (bx.length>0) sc(0); setupCanvas(); });
+function initFirst() {
+  if (bx.length === 0) return;
+  var si2 = getSortedIndices();
+  si = si2[0]; var b = bx[si]; var label = b.corrected_text || b.text || '';
+  document.getElementById('sl').textContent = '1 (' + (si+1) + ')';
+  document.getElementById('sm').textContent = b.confidence ? '置信度 '+Math.round(b.confidence*100)+'%' : '';
+  document.getElementById('et').value = label;
+  document.getElementById('eo').textContent = label || '(empty)';
+  document.getElementById('ex').value = Math.round(b.x / SCALE);
+  document.getElementById('ey').value = Math.round(b.y / SCALE);
+  document.getElementById('ew').value = Math.round(b.w / SCALE);
+  document.getElementById('eh').value = Math.round(b.h / SCALE);
+  cropImg(); dc(); updatePara();
+}
+document.addEventListener('DOMContentLoaded', function(){ rt(); });
+
+function setupCanvas() {
+  var img = document.getElementById('img');
+  var cv = document.getElementById('cv');
+  function resize() {
+    if (img.offsetWidth > 0) {
+      var w = img.offsetWidth, h = img.offsetHeight;
+      cv.style.width = w + 'px';
+      cv.style.height = h + 'px';
+      cv.width = w;
+      cv.height = h;
+      if (cv.width > 0 && cv.height > 0) dc();
+    }
+  }
+  resize();
+  img.onload = function(){ resize(); };
+  window.addEventListener('resize', resize);
+  cv.addEventListener('mousedown', md);
+  cv.addEventListener('mousemove', mm);
+  cv.addEventListener('mouseup', mu);
+  cv.addEventListener('mouseleave', mu);
+}
+window.addEventListener('load', function(){ setupCanvas(); initFirst(); });
 </script>
 </body></html>"""
 
@@ -591,89 +681,104 @@ def get_cropped():
 
 @app.route('/sv', methods=['POST'])
 def save_char():
-    req = request.json
-    page = req['p']; idx = req['i']
-    raw, clean, mapping = load_clean(page)
-    corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
+    try:
+        req = request.json
+        page = req['p']; idx = req['i']
+        raw, clean, mapping = load_clean(page)
+        if raw is None or idx >= len(clean):
+            return jsonify({'ok': False, 'm': f'索引越界 {idx}'})
+        corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
 
-    corr = []
-    if os.path.exists(corr_path):
-        with open(corr_path, encoding='utf-8') as f:
-            corr = json.load(f)
+        corr = []
+        if os.path.exists(corr_path):
+            with open(corr_path, encoding='utf-8') as f:
+                corr = json.load(f)
 
-    orig_idx = clean[idx].get('orig_idx', idx)
-    entry = None
-    for c in corr:
-        if c.get('orig_idx') == orig_idx and not c.get('deleted') and not c.get('added'):
-            entry = c
-            break
-    if entry is None:
-        entry = {'orig_idx': orig_idx}
-        corr.append(entry)
+        orig_idx = clean[idx].get('orig_idx', idx)
+        entry = None
+        for c in corr:
+            if c.get('orig_idx') == orig_idx and not c.get('deleted') and not c.get('added'):
+                entry = c
+                break
+        if entry is None:
+            entry = {'orig_idx': orig_idx}
+            corr.append(entry)
 
-    entry['corrected_text'] = req['t']
-    entry['manual_corrected'] = True
-    entry['x'] = req['x']
-    entry['y'] = req['y']
-    entry['w'] = req['w']
-    entry['h'] = req['h']
-    entry['text'] = req['t']
+        entry['corrected_text'] = req['t']
+        entry['manual_corrected'] = True
+        entry['x'] = req['x']
+        entry['y'] = req['y']
+        entry['w'] = req['w']
+        entry['h'] = req['h']
+        entry['text'] = req['t']
 
-    with open(corr_path, 'w', encoding='utf-8') as f:
-        json.dump(corr, f, ensure_ascii=False, indent=2)
-    drop_cache(page)
-    return jsonify({'ok': True, 'm': f'已保存字 {idx+1}',
-                    't': req['t'], 'xs': req['x'], 'ys': req['y'],
-                    'ws': req['w'], 'hs': req['h']})
+        with open(corr_path, 'w', encoding='utf-8') as f:
+            json.dump(corr, f, ensure_ascii=False, indent=2)
+        drop_cache(page)
+        return jsonify({'ok': True, 'm': f'已保存字 {idx+1}',
+                        't': req['t'], 'xs': req['x'], 'ys': req['y'],
+                        'ws': req['w'], 'hs': req['h']})
+    except Exception as e:
+        return jsonify({'ok': False, 'm': f'保存失败: {e}'})
 
 @app.route('/del', methods=['POST'])
 def delete_char():
-    req = request.json
-    page = req['p']; idx = req['i']
-    raw, clean, mapping = load_clean(page)
-    corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
+    try:
+        req = request.json
+        page = req['p']; idx = req['i']
+        raw, clean, mapping = load_clean(page)
+        if raw is None or idx >= len(clean):
+            return jsonify({'ok': False, 'm': f'索引越界 {idx}'})
+        corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
 
-    corr = []
-    if os.path.exists(corr_path):
-        with open(corr_path, encoding='utf-8') as f:
-            corr = json.load(f)
+        corr = []
+        if os.path.exists(corr_path):
+            with open(corr_path, encoding='utf-8') as f:
+                corr = json.load(f)
 
-    orig_idx = clean[idx].get('orig_idx', idx)
-    corr = [c for c in corr if not (c.get('orig_idx') == orig_idx and not c.get('deleted'))]
-    corr.append({'orig_idx': orig_idx, 'deleted': True})
+        orig_idx = clean[idx].get('orig_idx', idx)
+        corr = [c for c in corr if not (c.get('orig_idx') == orig_idx and not c.get('deleted'))]
+        corr.append({'orig_idx': orig_idx, 'deleted': True})
 
-    with open(corr_path, 'w', encoding='utf-8') as f:
-        json.dump(corr, f, ensure_ascii=False, indent=2)
-    drop_cache(page)
-    return jsonify({'ok': True, 'm': f'已删除字 {idx+1}'})
+        with open(corr_path, 'w', encoding='utf-8') as f:
+            json.dump(corr, f, ensure_ascii=False, indent=2)
+        drop_cache(page)
+        return jsonify({'ok': True, 'm': f'已删除字 {idx+1}'})
+    except Exception as e:
+        return jsonify({'ok': False, 'm': f'删除失败: {e}'})
 
 @app.route('/add', methods=['POST'])
 def add_char():
-    req = request.json
-    page = req['p']
-    raw, clean, mapping = load_clean(page)
-    corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
+    try:
+        req = request.json
+        page = req['p']
+        raw, clean, mapping = load_clean(page)
+        if raw is None:
+            return jsonify({'ok': False, 'm': '页面数据不存在'})
+        corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
 
-    corr = []
-    if os.path.exists(corr_path):
-        with open(corr_path, encoding='utf-8') as f:
-            corr = json.load(f)
+        corr = []
+        if os.path.exists(corr_path):
+            with open(corr_path, encoding='utf-8') as f:
+                corr = json.load(f)
 
-    max_oi = max([c.get('orig_idx', -1) for c in corr] + [len(raw) - 1])
-    new_entry = {
-        'orig_idx': max_oi + 1, 'added': True,
-        'col': 0, 'row': max_oi + 1,
-        'x': req['x'], 'y': req['y'],
-        'w': req['w'], 'h': req['h'],
-        'text': '', 'confidence': 0,
-        'corrected_text': '?', 'manual_corrected': True,
-    }
-    corr.append(new_entry)
+        max_oi = max([c.get('orig_idx', -1) for c in corr] + [len(raw) - 1])
+        new_entry = {
+            'orig_idx': max_oi + 1, 'added': True,
+            'col': 0, 'row': max_oi + 1,
+            'x': req['x'], 'y': req['y'],
+            'w': req['w'], 'h': req['h'],
+            'text': '', 'confidence': 0,
+            'corrected_text': '?', 'manual_corrected': True,
+        }
+        corr.append(new_entry)
 
-    with open(corr_path, 'w', encoding='utf-8') as f:
-        json.dump(corr, f, ensure_ascii=False, indent=2)
-    drop_cache(page)
-    return jsonify({'ok': True, 'm': '已新增字', 'entry': new_entry})
+        with open(corr_path, 'w', encoding='utf-8') as f:
+            json.dump(corr, f, ensure_ascii=False, indent=2)
+        drop_cache(page)
+        return jsonify({'ok': True, 'm': '已新增字', 'entry': new_entry})
+    except Exception as e:
+        return jsonify({'ok': False, 'm': f'新增失败: {e}'})
 
 @app.route('/submit', methods=['POST'])
 def submit_page():

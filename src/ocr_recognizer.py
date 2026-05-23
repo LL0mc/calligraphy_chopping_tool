@@ -89,8 +89,8 @@ def recognize_characters(gray: np.ndarray, characters: list,
     for idx, char in enumerate(characters):
         x, y, w, h = char[0], char[1], char[2], char[3]
         
-        # If original text from OCR is available and non-empty, use it directly
-        if char[8] and len(str(char[8]).strip()) > 0:
+        # If original text from OCR is available and high-confidence, use it directly
+        if char[8] and len(str(char[8]).strip()) > 0 and char[9] >= 0.6:
             text = char[8]
             score = char[9]
         else:

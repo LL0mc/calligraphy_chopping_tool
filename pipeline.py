@@ -66,8 +66,7 @@ def process_page(page_num, poems_data, ocr_engine="rapidocr",
     char_dir = os.path.join(CHARACTERS_DIR, f"page_{page_num:03d}")
     save_characters(characters, char_dir, page_num)
 
-    return {"characters": characters, "ocr_results": ocr_results,
-            "corrected": corrected, "changes": changes}
+    return {"characters": characters, "ocr_results": ocr_results}
 
 
 def main():
