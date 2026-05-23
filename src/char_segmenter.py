@@ -347,6 +347,10 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
             if aspect_ratio < 0.2 or aspect_ratio > 5.0:
                 continue
             
+            # Skip small components (likely punctuation residue)
+            if bw < 50 or bh < 50:
+                continue
+            
             candidates.append((x, x + bw, y, y + bh, area, bw, bh))
         
         # Merge nearby candidates
@@ -451,6 +455,10 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
                     
                     aspect_ratio = bw / bh if bh > 0 else 0
                     if aspect_ratio < 0.2 or aspect_ratio > 5.0:
+                        continue
+                    
+                    # Skip small components (likely punctuation residue)
+                    if bw < 50 or bh < 50:
                         continue
                     
                     candidates.append((x, x + bw, y, y + bh, area, bw, bh))

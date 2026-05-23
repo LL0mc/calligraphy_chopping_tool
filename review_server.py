@@ -1,4 +1,4 @@
-"""校对服务器 v3 - 缩放+PNG+坐标正确+新增字"""
+"""校对服务器 v4 - orig_idx 跟踪 + 提交功能"""
 import sys, os, json, cv2, numpy as np, base64, traceback
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -15,28 +15,29 @@ def get_font():
     except: return ImageFont.load_default()
 
 def load_data(page_num):
-    """Load original OCR data, then overlay manual corrections."""
+    """Load OCR data, then overlay corrections by orig_idx."""
     raw_path = os.path.join(PAGES_DIR, f"page_{page_num:03d}_ocr_results.json")
     if not os.path.exists(raw_path):
         return None
     with open(raw_path, encoding='utf-8') as f:
         raw = json.load(f)
-    # Apply manual corrections from corrected.json if exists
+    for i, item in enumerate(raw):
+        item['orig_idx'] = i
+
     corr_path = os.path.join(PAGES_DIR, f"page_{page_num:03d}_corrected.json")
     if os.path.exists(corr_path):
         with open(corr_path, encoding='utf-8') as f:
             corr = json.load(f)
-        # Build index by (col, row)
-        idx = {}
-        for ci, c in enumerate(corr):
-            if c.get('manual_corrected'):
-                idx[(c['col'], c['row'])] = ci
-        for item in raw:
-            key = (item['col'], item['row'])
-            if key in idx:
-                mc = corr[idx[key]]
-                item['corrected_text'] = mc.get('corrected_text', item['text'])
-                item['manual_corrected'] = True
+        for c in corr:
+            oi = c.get('orig_idx', -1)
+            if c.get('deleted'):
+                if 0 <= oi < len(raw):
+                    raw[oi]['deleted'] = True
+            elif c.get('added'):
+                raw.append(c)
+            elif 0 <= oi < len(raw):
+                for key, val in c.items():
+                    raw[oi][key] = val
     return raw
 
 def load_img(page_num):
@@ -55,6 +56,8 @@ def img_to_b64(img):
 def get_clean_data(data):
     clean, mapping = [], []
     for i, d in enumerate(data):
+        if d.get('deleted'):
+            continue
         if d.get('x') and d.get('w') and d['w'] > 5:
             clean.append(dict(d))
             mapping.append(i)
@@ -71,14 +74,7 @@ def load_clean(page_num):
 def drop_cache(page_num):
     _clean_cache.pop(page_num, None)
 
-def draw_text(img, text, pos, color):
-    pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-    d = ImageDraw.Draw(pil)
-    d.text(pos, text, font=get_font(), fill=color)
-    return cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
-
 def annotate_image(data, page_img, selected=0, server_scale=1.0):
-    """Generate box data (canvas draws boxes, not the server image)."""
     if server_scale < 1:
         img = cv2.resize(page_img, None, fx=server_scale, fy=server_scale)
     else:
@@ -93,6 +89,7 @@ def annotate_image(data, page_img, selected=0, server_scale=1.0):
         corr = d.get('corrected_text', '')
         boxes.append({
             'idx': i, 'col': d['col'], 'row': d['row'],
+            'orig_idx': d.get('orig_idx', i),
             'text': text, 'ocr': d.get('text', ''),
             'corrected_text': corr if corr and corr != text else '',
             'manual_corrected': d.get('manual_corrected', False),
@@ -149,6 +146,7 @@ tr.sel{background:#1a5276}
   <button onclick="loadPage()">加载</button>
   <span>选中: <b id="sl">-</b> / _TOTAL_</span>
   <span id="sm" style="color:#888;font-size:13px"></span>
+  <button onclick="submitPage()" style="background:#8e44ad">提交</button>
 </div>
 <div class="container">
   <div class="left">
@@ -212,7 +210,7 @@ function rt() {
   var h = '';
   for (var i = 0; i < bx.length; i++) {
     var b = bx[i];
-    var dt = b.corrected_text ? b.text+'\u2192'+b.corrected_text : (b.text||'');
+    var dt = b.corrected_text || b.text || '';
     var pc = Math.round(b.confidence * 100);
     h += '<tr onclick="sc('+i+')" id="r'+i+'" class="'+(i===si?'sel':'')+'">'+
       '<td>'+(i+1)+'</td><td>'+b.col+'</td><td>'+b.row+'</td>'+
@@ -236,7 +234,7 @@ function sc(idx) {
   document.getElementById('sl').textContent = idx+1;
   document.getElementById('sm').textContent = b.confidence ? '置信度 '+Math.round(b.confidence*100)+'%' : '';
   document.getElementById('et').value = b.corrected_text ? b.corrected_text : b.text;
-  document.getElementById('eo').textContent = b.corrected_text ? b.text+'\u2192'+b.corrected_text : (b.text||'(empty)');
+  document.getElementById('eo').textContent = b.corrected_text || b.text || '(empty)';
   document.getElementById('ex').value = Math.round(b.x / SCALE);
   document.getElementById('ey').value = Math.round(b.y / SCALE);
   document.getElementById('ew').value = Math.round(b.w / SCALE);
@@ -248,9 +246,16 @@ function sc(idx) {
 }
 
 function cropImg() {
-  fetch('/crop?p='+PAGE+'&i='+si).then(function(r){return r.json();}).then(function(d){
-    document.getElementById('crop').src = 'data:image/png;base64,'+d.b;
-  });
+  if (si < 0 || si >= bx.length) return;
+  var b = bx[si];
+  var img = document.getElementById('img');
+  if (!img.complete) return;
+  var cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(b.w) + 2);
+  cv.height = Math.max(1, Math.round(b.h) + 2);
+  var ctx = cv.getContext('2d');
+  ctx.drawImage(img, b.x - 1, b.y - 1, b.w + 2, b.h + 2, 0, 0, cv.width, cv.height);
+  document.getElementById('crop').src = cv.toDataURL();
 }
 
 function sv(cb) {
@@ -265,34 +270,66 @@ function sv(cb) {
       document.getElementById('msg').textContent = d.m;
       document.getElementById('msg').className = d.ok ? 'msg ok' : 'msg';
       if (d.ok) {
-        Object.assign(b, {text:d.t, x:d.xs*SCALE, y:d.ys*SCALE, w:d.ws*SCALE, h:d.hs*SCALE, manual_corrected:true});
+        b.text = d.t;
+        b.corrected_text = '';
+        b.manual_corrected = true;
+        b.x = d.xs*SCALE; b.y = d.ys*SCALE; b.w = d.ws*SCALE; b.h = d.hs*SCALE;
         rt(); dc(); cropImg();
         if (cb) cb();
       }
-    });
+    }).catch(function(e){ document.getElementById('msg').textContent = '请求失败: '+e; });
 }
 
 function delChar() {
-  if (!confirm('Delete #'+(si+1)+'?')) return;
   fetch('/del', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE, i:si})})
     .then(function(r){return r.json();}).then(function(d){
-      if (d.ok) location.reload();
-      else document.getElementById('msg').textContent = d.m;
-    });
+      if (d.ok) {
+        bx.splice(si, 1);
+        if (si >= bx.length) si = bx.length - 1;
+        if (si < 0) si = 0;
+        rt(); dc();
+        if (bx.length > 0) sc(si);
+        document.getElementById('msg').textContent = d.m;
+        document.getElementById('msg').className = 'msg ok';
+      } else {
+        document.getElementById('msg').textContent = d.m;
+      }
+    }).catch(function(e){ document.getElementById('msg').textContent = '请求失败: '+e; });
 }
 
 function addChar() {
-  // Find last box to place new char nearby
   var last = bx[bx.length-1];
   var nx = last ? last.x : 100;
   var ny = last ? Math.min(last.y + last.h + 10, 3000) : 100;
   var nw = 120, nh = 120;
-  // Estimate col/row
   fetch('/add', {method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({p:PAGE, x:Math.round(nx/SCALE), y:Math.round(ny/SCALE), w:Math.round(nw/SCALE), h:Math.round(nh/SCALE)})})
     .then(function(r){return r.json();}).then(function(d){
-      if (d.ok) location.reload();
-      else document.getElementById('msg').textContent = d.m;
+      if (d.ok) {
+        var c = d.entry;
+        var nb = {
+          idx: bx.length, col: c.col, row: c.row,
+          orig_idx: c.orig_idx,
+          text: '', corrected_text: c.corrected_text || '?',
+          manual_corrected: true, confidence: 0,
+          x: c.x * SCALE, y: c.y * SCALE, w: c.w * SCALE, h: c.h * SCALE
+        };
+        bx.push(nb);
+        sc(bx.length - 1);
+        document.getElementById('msg').textContent = d.m;
+        document.getElementById('msg').className = 'msg ok';
+      } else {
+        document.getElementById('msg').textContent = d.m;
+      }
+    }).catch(function(e){ document.getElementById('msg').textContent = '请求失败: '+e; });
+}
+
+function submitPage() {
+  if (!confirm('提交第'+PAGE+'页审查结果，进入下一页？')) return;
+  fetch('/submit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE})})
+    .then(function(r){return r.json();}).then(function(d){
+      if (d.ok) { window.location.href = '/?p=' + (PAGE + 1); }
+      else { document.getElementById('msg').textContent = '提交失败'; }
     });
 }
 
@@ -481,7 +518,8 @@ function mu(e) {
         document.getElementById('msg').className = d.ok ? 'msg ok' : 'msg';
         if (d.ok) {
           var b = bx[si];
-          Object.assign(b, {text:d.t, x:d.xs*SCALE, y:d.ys*SCALE, w:d.ws*SCALE, h:d.hs*SCALE, manual:true});
+          b.text = d.t; b.corrected_text = ''; b.manual_corrected = true;
+          b.x = d.xs*SCALE; b.y = d.ys*SCALE; b.w = d.ws*SCALE; b.h = d.hs*SCALE;
           rt(); cropImg(); dc();
         }
       });
@@ -556,70 +594,98 @@ def save_char():
     req = request.json
     page = req['p']; idx = req['i']
     raw, clean, mapping = load_clean(page)
-    path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
-    src = path if os.path.exists(path) else os.path.join(PAGES_DIR, f"page_{page:03d}_ocr_results.json")
-    try:
-        with open(src, encoding='utf-8') as f:
-            full = json.load(f)
-        orig = mapping[idx]
-        d = full[orig]
-        d['corrected_text'] = req['t']
-        d['manual_corrected'] = True
-        d['x'], d['y'], d['w'], d['h'] = req['x'], req['y'], req['w'], req['h']
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(full, f, ensure_ascii=False, indent=2)
-        drop_cache(page)
-        return jsonify({'ok': True, 'm': f'已保存字 {idx+1}',
-                        't': req['t'], 'xs': req['x'], 'ys': req['y'],
-                        'ws': req['w'], 'hs': req['h']})
-    except Exception as e:
-        return jsonify({'ok': False, 'm': str(e)})
+    corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
+
+    corr = []
+    if os.path.exists(corr_path):
+        with open(corr_path, encoding='utf-8') as f:
+            corr = json.load(f)
+
+    orig_idx = clean[idx].get('orig_idx', idx)
+    entry = None
+    for c in corr:
+        if c.get('orig_idx') == orig_idx and not c.get('deleted') and not c.get('added'):
+            entry = c
+            break
+    if entry is None:
+        entry = {'orig_idx': orig_idx}
+        corr.append(entry)
+
+    entry['corrected_text'] = req['t']
+    entry['manual_corrected'] = True
+    entry['x'] = req['x']
+    entry['y'] = req['y']
+    entry['w'] = req['w']
+    entry['h'] = req['h']
+    entry['text'] = req['t']
+
+    with open(corr_path, 'w', encoding='utf-8') as f:
+        json.dump(corr, f, ensure_ascii=False, indent=2)
+    drop_cache(page)
+    return jsonify({'ok': True, 'm': f'已保存字 {idx+1}',
+                    't': req['t'], 'xs': req['x'], 'ys': req['y'],
+                    'ws': req['w'], 'hs': req['h']})
 
 @app.route('/del', methods=['POST'])
 def delete_char():
     req = request.json
     page = req['p']; idx = req['i']
-    path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
-    if not os.path.exists(path):
-        return jsonify({'ok': False, 'm': '找不到校正文件，请先保存一次'})
-    try:
-        with open(path, encoding='utf-8') as f:
-            full = json.load(f)
-        raw, clean, mapping = load_clean(page)
-        orig = mapping[idx]
-        full.pop(orig)
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(full, f, ensure_ascii=False, indent=2)
-        drop_cache(page)
-        return jsonify({'ok': True, 'm': f'已删除字 {idx+1}'})
-    except Exception as e:
-        return jsonify({'ok': False, 'm': str(e)})
+    raw, clean, mapping = load_clean(page)
+    corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
+
+    corr = []
+    if os.path.exists(corr_path):
+        with open(corr_path, encoding='utf-8') as f:
+            corr = json.load(f)
+
+    orig_idx = clean[idx].get('orig_idx', idx)
+    corr = [c for c in corr if not (c.get('orig_idx') == orig_idx and not c.get('deleted'))]
+    corr.append({'orig_idx': orig_idx, 'deleted': True})
+
+    with open(corr_path, 'w', encoding='utf-8') as f:
+        json.dump(corr, f, ensure_ascii=False, indent=2)
+    drop_cache(page)
+    return jsonify({'ok': True, 'm': f'已删除字 {idx+1}'})
 
 @app.route('/add', methods=['POST'])
 def add_char():
     req = request.json
     page = req['p']
-    path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
-    src = path if os.path.exists(path) else os.path.join(PAGES_DIR, f"page_{page:03d}_ocr_results.json")
-    try:
-        with open(src, encoding='utf-8') as f:
-            full = json.load(f)
-        # Add new entry at end
-        new_entry = {
-            'col': 0, 'row': len(full) + 1,
-            'x': req['x'], 'y': req['y'],
-            'w': req['w'], 'h': req['h'],
-            'text': '', 'confidence': 0,
-            'corrected_text': '?',
-            'manual_corrected': True,
-        }
-        full.append(new_entry)
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(full, f, ensure_ascii=False, indent=2)
-        drop_cache(page)
-        return jsonify({'ok': True, 'm': '已新增字'})
-    except Exception as e:
-        return jsonify({'ok': False, 'm': str(e)})
+    raw, clean, mapping = load_clean(page)
+    corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
+
+    corr = []
+    if os.path.exists(corr_path):
+        with open(corr_path, encoding='utf-8') as f:
+            corr = json.load(f)
+
+    max_oi = max([c.get('orig_idx', -1) for c in corr] + [len(raw) - 1])
+    new_entry = {
+        'orig_idx': max_oi + 1, 'added': True,
+        'col': 0, 'row': max_oi + 1,
+        'x': req['x'], 'y': req['y'],
+        'w': req['w'], 'h': req['h'],
+        'text': '', 'confidence': 0,
+        'corrected_text': '?', 'manual_corrected': True,
+    }
+    corr.append(new_entry)
+
+    with open(corr_path, 'w', encoding='utf-8') as f:
+        json.dump(corr, f, ensure_ascii=False, indent=2)
+    drop_cache(page)
+    return jsonify({'ok': True, 'm': '已新增字', 'entry': new_entry})
+
+@app.route('/submit', methods=['POST'])
+def submit_page():
+    req = request.json
+    page = req['p']
+    # Mark as reviewed by creating a marker file
+    marker = os.path.join(PAGES_DIR, f"page_{page:03d}_reviewed.json")
+    raw, clean, mapping = load_clean(page)
+    data = {'pages': [{'page': page, 'count': len(clean)}]}
+    with open(marker, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return jsonify({'ok': True})
 
 if __name__ == '__main__':
     import webbrowser
