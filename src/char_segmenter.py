@@ -379,7 +379,7 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
                 
                 distance = ((center1_x - center2_x) ** 2 + (center1_y - center2_y) ** 2) ** 0.5
                 
-                if distance < 40:
+                if distance < 80:
                     merged_box[0] = min(merged_box[0], other[0])
                     merged_box[1] = max(merged_box[1], other[1])
                     merged_box[2] = min(merged_box[2], other[2])
@@ -398,10 +398,12 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
     if sorted_chars:
         last_char = sorted_chars[-1]
         gap_start = last_char[3]
-        gap_end = h  # Use full image height
         
         # Estimate gap size based on average character height
         avg_height = np.mean([c[3] - c[2] for c in sorted_chars])
+        
+        # 限制搜索高度为2倍平均字高，避免远距离墨迹干扰
+        gap_end = min(h, gap_start + int(2 * avg_height))
         gap_size = gap_end - gap_start
         
         # If there's enough space for at least half a character
@@ -429,6 +431,22 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
                     bh = stats[j, cv2.CC_STAT_HEIGHT]
                     
                     if x + bw < x_min - 10 or x > x_max + 10:
+                        continue
+                    
+                    # Ink-tail check: candidate too close to last char (< 25% avg_height)
+                    inter_gap = y - last_char[3]
+                    if inter_gap >= 0 and inter_gap < avg_height * 0.25:
+                        continue
+                    
+                    # Overlap check: candidate significantly overlaps last char
+                    inter_x1 = max(x, last_char[0])
+                    inter_x2 = min(x + bw, last_char[1])
+                    inter_y1 = max(y, last_char[2])
+                    inter_y2 = min(y + bh, last_char[3])
+                    inter_w = max(0, inter_x2 - inter_x1)
+                    inter_h = max(0, inter_y2 - inter_y1)
+                    inter_area = inter_w * inter_h
+                    if inter_area > 0 and inter_area / area > 0.5:
                         continue
                     
                     aspect_ratio = bw / bh if bh > 0 else 0

@@ -89,21 +89,26 @@ def recognize_characters(gray: np.ndarray, characters: list,
     for idx, char in enumerate(characters):
         x, y, w, h = char[0], char[1], char[2], char[3]
         
-        # 扩展框
-        ex, ey, ew, eh = expand_box(gray, x, y, w, h, 
-                                     strategy=expand_strategy, 
-                                     padding=expand_padding)
-        
-        # 裁剪扩展后的图像
-        char_img = gray[ey:ey+eh, ex:ex+ew]
-        
-        # 识别
-        text, score = recognize_single_char(char_img)
-        
-        # 如果识别为空，尝试不扩展
-        if not text and expand_strategy != "none":
-            orig_img = gray[y:y+h, x:x+w]
-            text, score = recognize_single_char(orig_img)
+        # If original text from OCR is available and non-empty, use it directly
+        if char[8] and len(str(char[8]).strip()) > 0:
+            text = char[8]
+            score = char[9]
+        else:
+            # Re-OCR: expand box and recognize
+            ex, ey, ew, eh = expand_box(gray, x, y, w, h, 
+                                         strategy=expand_strategy, 
+                                         padding=expand_padding)
+            
+            # 裁剪扩展后的图像
+            char_img = gray[ey:ey+eh, ex:ex+ew]
+            
+            # 识别
+            text, score = recognize_single_char(char_img)
+            
+            # 如果识别为空，尝试不扩展
+            if not text and expand_strategy != "none":
+                orig_img = gray[y:y+h, x:x+w]
+                text, score = recognize_single_char(orig_img)
         
         results.append({
             'x': x, 'y': y, 'w': w, 'h': h,
