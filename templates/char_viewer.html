@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>字帖字符查看器</title>
+<script src="/static/js/fabric.min.js">
+</script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  background: #2a2520; color: #d4c9b0;
+  height: 100vh; display: flex; flex-direction: column;
+  user-select: none;
+}
+#toolbar {
+  background: #3a3228; padding: 10px 20px;
+  display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid #4a4032; flex-shrink: 0; flex-wrap: wrap;
+}
+#toolbar label { font-size: 13px; color: #b0a088; }
+#searchInput {
+  padding: 6px 12px; font-size: 15px; width: 180px;
+  background: #4a4032; border: 1px solid #5a5042; color: #e8d8c0;
+  border-radius: 4px; outline: none;
+}
+#searchInput:focus { border-color: #c09860; }
+select {
+  padding: 5px 8px; font-size: 13px;
+  background: #4a4032; border: 1px solid #5a5042; color: #d4c9b0;
+  border-radius: 4px; cursor: pointer; outline: none;
+}
+.btn {
+  padding: 6px 14px; font-size: 13px;
+  background: #5a4a35; border: 1px solid #6a5a45; color: #d4c9b0;
+  border-radius: 4px; cursor: pointer;
+}
+.btn:hover { background: #6a5a45; }
+.btn.active { background: #8a6a40; border-color: #c09860; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#sidebar {
+  width: 240px; min-width: 240px; background: #322a20;
+  border-right: 1px solid #4a4032; display: flex; flex-direction: column;
+}
+#sidebarHeader { padding: 10px 14px; font-size: 13px; color: #a09880; border-bottom: 1px solid #4a4032; }
+#charList { flex: 1; overflow-y: auto; padding: 6px; }
+.char-item { padding: 8px 12px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; margin-bottom: 2px; }
+.char-item:hover { background: #4a3a28; }
+.char-item.active { background: #6a5a35; }
+.char-item .char-text { font-size: 20px; }
+.char-item .char-count { font-size: 12px; color: #a09880; }
+#viewer {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  overflow-y: auto; padding: 16px;
+}
+#canvasContainer {
+  position: relative; border-radius: 6px; overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4); flex-shrink: 0;
+}
+#controls {
+  margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
+  flex-shrink: 0;
+}
+#controls .info { font-size: 12px; color: #908070; margin: 0 8px; }
+#variantStrip {
+  margin-top: 10px; display: flex; gap: 6px;
+  padding: 8px 12px; background: #322a20; border-radius: 6px;
+  max-width: 520px; flex-wrap: wrap; justify-content: center; align-content: flex-start;
+}
+.variant-thumb {
+  width: 44px; height: 56px; object-fit: contain; cursor: pointer;
+  border: 2px solid transparent; border-radius: 3px;
+  background: #4a3a28; display: inline-block;
+}
+.variant-thumb:hover { border-color: #a08060; }
+.variant-thumb.active { border-color: #c09860; }
+#loading {
+  display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5); z-index: 999;
+  align-items: center; justify-content: center; font-size: 18px; color: #e8d8c0;
+}
+#loading.show { display: flex; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #2a2520; }
+::-webkit-scrollbar-thumb { background: #5a4a35; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <label>🔍</label>
+  <input id="searchInput" placeholder="输入汉字搜索..." autofocus>
+  <select id="modeSelect">
+    <option value="original" selected>原图</option>
+    <option value="enhanced">清晰增强</option>
+    <option value="bilateral">双边滤波</option>
+    <option value="binary">二值</option>
+  </select>
+  <button id="invertBtn" class="btn">反色</button>
+  <select id="gridSelect">
+    <option value="mizi">米字格</option>
+    <option value="tianzi">田字格</option>
+  </select>
+  <span style="flex:1"></span>
+  <span id="navInfo" style="font-size:12px;color:#908070;"></span>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="sidebarHeader">字符列表</div>
+    <div id="charList"><div style="padding:20px;text-align:center;color:#706050;font-size:14px;">加载中...</div></div>
+  </div>
+  <div id="viewer">
+    <div id="canvasContainer">
+      <canvas id="mizigeCanvas" width="240" height="240"></canvas>
+    </div>
+    <div id="controls">
+      <button id="prevBtn" class="btn">◀ 上一个</button>
+      <button id="resetBtn" class="btn" title="重置位置和缩放">重置位置</button>
+      <button id="nextBtn" class="btn">下一个 ▶</button>
+      <span class="info" id="posInfo"></span>
+    </div>
+    <div id="variantStrip"></div>
+  </div>
+</div>
+
+<div id="loading">加载中...</div>
+
+<script>
+// ---- Fabric Canvas Init ----
+let canvas = null;
+try {
+  canvas = new fabric.Canvas('mizigeCanvas', {
+    selection: false,
+    backgroundColor: '#ffffff',
+    preserveObjectStacking: true,
+    centeredScaling: true,
+  });
+} catch(e) {
+  console.warn('Fabric init failed:', e);
+}
+
+const GRID_SIZE = 200;
+const GRID_OFFSET = 20;
+const CANVAS_SIZE = 240;
+
+let gridObjects = [];
+let charImage = null;
+let currentVariants = [];
+let currentVariantIndex = -1;
+let currentChar = '';
+let currentMode = 'original';
+let currentInvert = false;
+let currentGrid = 'mizi';
+let loadSeq = 0;
+
+// ---- Grid Drawing ----
+function drawGrid() {
+  if (!canvas) return;
+  gridObjects.forEach(o => { try { canvas.remove(o); } catch(e) {} });
+  gridObjects = [];
+
+  const gs = GRID_SIZE, go = GRID_OFFSET;
+  const dash = [6, 4], dash2 = [4, 5];
+
+  function add(obj) { gridObjects.push(obj); canvas.add(obj); }
+
+  add(new fabric.Rect({
+    left: go, top: go, width: gs, height: gs,
+    fill: 'transparent', stroke: '#cc3333', strokeWidth: 3,
+    strokeDashArray: dash, selectable: false, evented: false,
+  }));
+
+  const c = go + gs / 2;
+
+  add(new fabric.Line([c, go, c, go + gs], {
+    stroke: '#cc3333', strokeWidth: 2.5, strokeDashArray: dash,
+    selectable: false, evented: false,
+  }));
+  add(new fabric.Line([go, c, go + gs, c], {
+    stroke: '#cc3333', strokeWidth: 2.5, strokeDashArray: dash,
+    selectable: false, evented: false,
+  }));
+
+  if (currentGrid === 'mizi') {
+    add(new fabric.Line([go, go, go + gs, go + gs], {
+      stroke: '#cc3333', strokeWidth: 2, strokeDashArray: dash2,
+      selectable: false, evented: false,
+    }));
+    add(new fabric.Line([go + gs, go, go, go + gs], {
+      stroke: '#cc3333', strokeWidth: 2, strokeDashArray: dash2,
+      selectable: false, evented: false,
+    }));
+  }
+}
+
+// ---- Image URL ----
+function getImageUrl(v, size) {
+  const s = size || GRID_SIZE;
+  return '/api/image/' + v.page_dir + '/' + encodeURIComponent(v.filename) + '?mode=' + currentMode + '&invert=' + (currentInvert ? '1' : '0') + '&size=' + s + '&_t=' + Date.now();
+}
+
+// ---- Compute Ink Center from Image ----
+function computeInkCenter(imgObj) {
+  const c = document.createElement('canvas');
+  c.width = imgObj.width;
+  c.height = imgObj.height;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(imgObj.getElement(), 0, 0);
+  const d = ctx.getImageData(0, 0, imgObj.width, imgObj.height).data;
+  const n = imgObj.width * imgObj.height;
+
+  let sumGray = 0;
+  for (let i = 0; i < n; i++) {
+    const j = i * 4;
+    sumGray += 0.299 * d[j] + 0.587 * d[j+1] + 0.114 * d[j+2];
+  }
+  const inverted = (sumGray / n) < 128;
+
+  let mass = 0, cx = 0, cy = 0;
+  for (let y = 0; y < imgObj.height; y++) {
+    for (let x = 0; x < imgObj.width; x++) {
+      const i = (y * imgObj.width + x) * 4;
+      const gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+      const m = inverted ? gray : (255 - gray);
+      if (m > 30) { mass += m; cx += x * m; cy += y * m; }
+    }
+  }
+  if (mass > 0) { cx /= mass; cy /= mass; }
+  else { cx = imgObj.width / 2; cy = imgObj.height / 2; }
+  return { cx, cy };
+}
+
+// ---- Compute background color from image (find dominant brightness peak) ----
+function computeBgColor(imgObj) {
+  const c = document.createElement('canvas');
+  c.width = Math.min(imgObj.width, 200);
+  c.height = Math.min(imgObj.height, 200);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(imgObj.getElement(), 0, 0, c.width, c.height);
+  const d = ctx.getImageData(0, 0, c.width, c.height).data;
+  const hist = new Array(256).fill(0);
+  for (let i = 0; i < d.length; i += 4) {
+    const bright = Math.round((d[i] + d[i+1] + d[i+2]) / 3);
+    if (bright >= 0 && bright <= 255) hist[bright]++;
+  }
+  let peakIdx = 0, peakVal = 0;
+  for (let i = 0; i < 256; i++) {
+    if (hist[i] > peakVal) { peakVal = hist[i]; peakIdx = i; }
+  }
+  let R = 0, G = 0, B = 0, n = 0;
+  const lo = Math.max(0, peakIdx - 30);
+  const hi = Math.min(255, peakIdx + 30);
+  for (let i = 0; i < d.length; i += 4) {
+    const bright = Math.round((d[i] + d[i+1] + d[i+2]) / 3);
+    if (bright >= lo && bright <= hi) {
+      R += d[i]; G += d[i+1]; B += d[i+2]; n++;
+    }
+  }
+  if (n < 10) return { r: 35, g: 33, b: 38 };
+  return { r: Math.round(R/n), g: Math.round(G/n), b: Math.round(B/n) };
+}
+
+// ---- Remove ALL image objects from canvas (robust cleanup) ----
+function removeAllImages() {
+  if (!canvas) return;
+  var objs = canvas.getObjects();
+  for (var i = objs.length - 1; i >= 0; i--) {
+    if (objs[i].type === 'image') {
+      try { canvas.remove(objs[i]); } catch(e) {}
+    }
+  }
+  charImage = null;
+}
+
+// ---- Unified image load (both initial character load and mode/invert reload) ----
+function loadImage(variants, index, savedTransform, isModeReload) {
+  if (!variants || index < 0 || index >= variants.length) return;
+
+  currentVariantIndex = index;
+  currentVariants = variants;
+  const v = variants[index];
+  const seq = ++loadSeq;
+
+  removeAllImages();
+  canvas.renderAll();
+
+  document.getElementById('loading').classList.add('show');
+  const loadTimer = setTimeout(function() {
+    document.getElementById('loading').classList.remove('show');
+  }, 15000);
+
+  const url = getImageUrl(v);
+  fabric.Image.fromURL(url, function(img, err) {
+    clearTimeout(loadTimer);
+    document.getElementById('loading').classList.remove('show');
+    if (err || !img || !canvas || seq !== loadSeq) {
+      if (seq !== loadSeq) return;
+      console.error('Image load failed:', url);
+      return;
+    }
+
+    try {
+      const center = computeInkCenter(img);
+      const maxSize = GRID_SIZE * 0.85;
+      const scale = Math.min(maxSize / img.width, maxSize / img.height);
+      const gc = GRID_OFFSET + GRID_SIZE / 2;
+      const baseLeft = gc - (center.cx - img.width / 2) * scale;
+      const baseTop = gc - (center.cy - img.height / 2) * scale;
+
+      var zoomRatio = 1;
+      if (savedTransform) { zoomRatio = savedTransform.zoom || 1; }
+
+      img.set({
+        scaleX: scale * zoomRatio, scaleY: scale * zoomRatio,
+        left: baseLeft, top: baseTop,
+        hasControls: true, hasBorders: true,
+        lockRotation: true, lockUniScaling: true,
+        cornerSize: 10, transparentCorners: false,
+        cornerColor: '#c09860', borderColor: '#cc3333', borderScaleFactor: 1.5, padding: 6,
+        originX: 'center', originY: 'center',
+      });
+      img.setControlsVisibility({
+        bl: false, br: true, mb: false, ml: false,
+        mr: false, mt: false, tl: false, tr: false,
+      });
+      img._origScale = scale;
+      img._origLeft = baseLeft;
+      img._origTop = baseTop;
+
+      var bg = computeBgColor(img);
+      canvas.backgroundColor = 'rgb(' + bg.r + ',' + bg.g + ',' + bg.b + ')';
+
+      canvas.add(img);
+      charImage = img;
+      drawGrid();
+      canvas.renderAll();
+
+      if (!isModeReload) {
+        updateVariantStrip(variants, index);
+        updateNavInfo(variants, index, v);
+      }
+    } catch(e) {
+      console.error('loadImage callback error:', e, url);
+    }
+  });
+}
+
+function updateNavInfo(variants, index, v) {
+  document.getElementById('navInfo').textContent = (index + 1) + ' / ' + variants.length + ' · 第' + v.page + '页';
+  document.getElementById('posInfo').textContent = '第' + v.page + '页 · ' + v.filename;
+}
+
+function updateVariantStrip(variants, activeIdx) {
+  var strip = document.getElementById('variantStrip');
+  if (!strip) { console.error('variantStrip not found'); return; }
+  strip.innerHTML = '';
+  if (!variants || variants.length === 0) { strip.innerHTML = '<span style="color:#706050;font-size:12px;">无变体</span>'; return; }
+  var count = 0;
+  variants.forEach(function(v, i) {
+    var img = document.createElement('img');
+    img.className = 'variant-thumb' + (i === activeIdx ? ' active' : '');
+    img.src = getImageUrl(v, 100);
+    img.title = '第' + v.page + '页';
+    img.onerror = function() {
+      console.warn('Thumb error:', this.src);
+      this.alt = '×';
+      this.style.opacity = '0.2';
+      this.style.display = 'none';
+    };
+    img.onclick = function() { loadImage(variants, i, null, false); };
+    strip.appendChild(img);
+    count++;
+  });
+}
+
+// ---- Search ----
+var searchTimer = null;
+document.getElementById('searchInput').addEventListener('input', function() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(function() { doSearch(document.getElementById('searchInput').value.trim()); }, 200);
+});
+
+function doSearch(q) {
+  var url = q ? '/api/search?q=' + encodeURIComponent(q) : '/api/search';
+  fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+    var list = document.getElementById('charList');
+    if (!data || data.length === 0) {
+      list.innerHTML = '<div style="padding:20px;text-align:center;color:#706050;">未找到匹配字符</div>';
+      return;
+    }
+    list.innerHTML = '';
+    data.forEach(function(item) {
+      var div = document.createElement('div');
+      div.className = 'char-item' + (item.char === currentChar ? ' active' : '');
+      div.innerHTML = '<span class="char-text">' + item.char + '</span><span class="char-count">' + item.count + '个</span>';
+      div.onclick = function() { selectChar(item.char); };
+      list.appendChild(div);
+    });
+  });
+}
+
+function selectChar(char) {
+  currentChar = char;
+  document.querySelectorAll('.char-item').forEach(function(el) {
+    var t = el.querySelector('.char-text');
+    el.className = 'char-item' + (t && t.textContent === char ? ' active' : '');
+  });
+  fetch('/api/char/' + encodeURIComponent(char)).then(function(r) { return r.json(); }).then(function(data) {
+    if (data.variants && data.variants.length > 0) loadImage(data.variants, 0, null, false);
+  });
+}
+
+// ---- Controls ----
+document.getElementById('modeSelect').addEventListener('change', function() {
+  currentMode = this.value;
+  if (!currentVariants || currentVariants.length === 0 || currentVariantIndex < 0) return;
+  var savedZoom = 1;
+  if (charImage && charImage._origScale) {
+    savedZoom = charImage._origScale > 0 ? charImage.scaleX / charImage._origScale : 1;
+  }
+  loadImage(currentVariants, currentVariantIndex, { zoom: savedZoom }, true);
+});
+
+document.getElementById('invertBtn').addEventListener('click', function() {
+  currentInvert = !currentInvert;
+  this.classList.toggle('active', currentInvert);
+  drawGrid();
+  if (!currentVariants || currentVariants.length === 0 || currentVariantIndex < 0) return;
+  var savedZoom = 1;
+  if (charImage && charImage._origScale) {
+    savedZoom = charImage._origScale > 0 ? charImage.scaleX / charImage._origScale : 1;
+  }
+  loadImage(currentVariants, currentVariantIndex, { zoom: savedZoom }, true);
+});
+
+document.getElementById('gridSelect').addEventListener('change', function() {
+  currentGrid = this.value;
+  drawGrid();
+});
+
+document.getElementById('resetBtn').addEventListener('click', function() {
+  if (!charImage) return;
+  charImage.set({ scaleX: charImage._origScale, scaleY: charImage._origScale, left: charImage._origLeft, top: charImage._origTop });
+  canvas.renderAll();
+});
+
+document.getElementById('prevBtn').addEventListener('click', function() {
+  if (currentVariants.length > 0 && currentVariantIndex > 0) loadImage(currentVariants, currentVariantIndex - 1, null, false);
+});
+
+document.getElementById('nextBtn').addEventListener('click', function() {
+  if (currentVariants.length > 0 && currentVariantIndex < currentVariants.length - 1) loadImage(currentVariants, currentVariantIndex + 1, null, false);
+});
+
+// ---- Keyboard ----
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowLeft') { e.preventDefault(); document.getElementById('prevBtn').click(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); document.getElementById('nextBtn').click(); }
+  else if (e.key === 'r' || e.key === 'R') document.getElementById('resetBtn').click();
+  else if (e.key === 'i' || e.key === 'I') document.getElementById('invertBtn').click();
+});
+
+// ---- Mouse Wheel Zoom ----
+canvas.on('mouse:wheel', function(opt) {
+  if (!charImage) return;
+  var delta = opt.e.deltaY;
+  var zoom = charImage.scaleX * Math.pow(0.999, delta);
+  zoom = Math.min(Math.max(zoom, 0.3), 6);
+  charImage.set({ scaleX: zoom, scaleY: zoom });
+  canvas.renderAll();
+  opt.e.preventDefault();
+  opt.e.stopPropagation();
+});
+
+// Deselect on bg click
+canvas.on('mouse:down', function(opt) {
+  if (!opt.target) { canvas.discardActiveObject(); canvas.renderAll(); }
+});
+
+// ---- Init ----
+drawGrid();
+doSearch('');
+document.getElementById('searchInput').focus();
+
+var initQ = new URLSearchParams(window.location.search).get('q');
+if (initQ) { document.getElementById('searchInput').value = initQ; doSearch(initQ); }
+</script>
+</body>
+</html>
