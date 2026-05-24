@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>集字排版</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  background: #2a2520; color: #d4c9b0;
+  height: 100vh; display: flex; flex-direction: column;
+  user-select: none;
+}
+#toolbar {
+  background: #3a3228; padding: 10px 20px;
+  display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid #4a4032; flex-shrink: 0; flex-wrap: wrap;
+}
+#toolbar label { font-size: 13px; color: #b0a088; white-space: nowrap; }
+#textInput {
+  padding: 6px 12px; font-size: 15px; width: 300px;
+  background: #4a4032; border: 1px solid #5a5042; color: #e8d8c0;
+  border-radius: 4px; outline: none;
+}
+#textInput:focus { border-color: #c09860; }
+select, input[type=number] {
+  padding: 5px 8px; font-size: 13px;
+  background: #4a4032; border: 1px solid #5a5042; color: #d4c9b0;
+  border-radius: 4px; cursor: pointer; outline: none;
+}
+input[type=number] { width: 55px; }
+.btn {
+  padding: 6px 14px; font-size: 13px;
+  background: #5a4a35; border: 1px solid #6a5a45; color: #d4c9b0;
+  border-radius: 4px; cursor: pointer;
+}
+.btn:hover { background: #6a5a45; }
+.btn.primary { background: #8a6a40; border-color: #c09860; }
+.btn.primary:hover { background: #9a7a50; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#sidebar {
+  width: 260px; min-width: 260px; background: #322a20;
+  border-right: 1px solid #4a4032; display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+#sidebar h3 { padding: 10px 14px; font-size: 13px; color: #a09880; border-bottom: 1px solid #4a4032; }
+#charSelectList { flex: 1; padding: 6px; }
+.char-sel-item {
+  padding: 6px 10px; cursor: pointer; border-radius: 4px;
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;
+}
+.char-sel-item:hover { background: #4a3a28; }
+.char-sel-item .char-text { font-size: 18px; font-weight: bold; }
+.char-sel-item .char-pos { font-size: 11px; color: #706050; }
+.var-thumb {
+  width: 36px; height: 44px; object-fit: contain; cursor: pointer;
+  border: 2px solid transparent; border-radius: 2px; background: #4a3a28;
+  margin: 1px;
+}
+.var-thumb:hover { border-color: #a08060; }
+.var-thumb.active { border-color: #c09860; }
+#previewArea {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  overflow: auto; padding: 20px; position: relative;
+}
+#previewWrap {
+  position: relative; display: inline-block;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5); border-radius: 4px;
+  min-width: 100px; min-height: 100px;
+}
+#previewImg { display: block; max-width: none; }
+#loading {
+  display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5); z-index: 999;
+  align-items: center; justify-content: center; font-size: 18px;
+}
+#loading.show { display: flex; }
+
+/* Background textures */
+.bg-white { background: #ffffff; }
+.bg-black { background: #000000; }
+.bg-beige { background: #f5f0e8; }
+.bg-red { background: #c83030; }
+.bg-grass {
+  background: #e8ddc8;
+  background-image:
+    repeating-linear-gradient(87deg, rgba(120,100,60,0.08) 0px, rgba(120,100,60,0.08) 1px, transparent 1px, transparent 10px),
+    repeating-linear-gradient(173deg, rgba(100,80,40,0.06) 0px, rgba(100,80,40,0.06) 1px, transparent 1px, transparent 14px);
+}
+.bg-gold-fleck {
+  background: #f0e4c8;
+  background-image:
+    radial-gradient(2px 2px at 15% 22%, rgba(180,150,50,0.5) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 35% 65%, rgba(200,170,60,0.4) 50%, transparent 50%),
+    radial-gradient(2px 2px at 55% 12%, rgba(180,150,50,0.35) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 72% 78%, rgba(200,170,60,0.5) 50%, transparent 50%),
+    radial-gradient(2px 2px at 88% 35%, rgba(180,150,50,0.4) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 25% 88%, rgba(200,170,60,0.3) 50%, transparent 50%),
+    radial-gradient(2px 2px at 65% 45%, rgba(180,150,50,0.35) 50%, transparent 50%),
+    radial-gradient(1.5px 1.5px at 8% 55%, rgba(200,170,60,0.4) 50%, transparent 50%);
+}
+
+/* Metallic overlay for preview image */
+.metallic-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,240,0.25) 0%, rgba(255,255,240,0) 30%, rgba(0,0,0,0.1) 70%, rgba(0,0,0,0.2) 100%);
+  mix-blend-mode: overlay;
+}
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <label>✍</label>
+  <input id="textInput" placeholder="输入要排版的文字..." value="梦回红楼">
+  <button class="btn primary" onclick="doSearch()">搜索字</button>
+  <span style="flex:1"></span>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <h3>选字列表</h3>
+    <div id="charSelectList"><div style="padding:20px;text-align:center;color:#706050;font-size:14px;">输入文字后搜索</div></div>
+  </div>
+  <div id="previewArea">
+    <div id="previewWrap" class="bg-beige">
+      <img id="previewImg" style="display:none;">
+      <div id="noPreview" style="padding:40px;color:#908070;text-align:center;">
+        输入文字，设置参数，点击「渲染」
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="loading" class="show" style="display:none;">渲染中...</div>
+
+<div id="paramsBar" style="
+  background:#3a3228; padding:8px 20px; display:flex; align-items:center; gap:12px;
+  border-top:1px solid #4a4032; flex-shrink:0; flex-wrap:wrap;
+">
+  <label>每行/列</label>
+  <input type="number" id="colsInput" value="5" min="1" max="20">
+  <label>方向</label>
+  <select id="dirSelect">
+    <option value="h_ltr">横排 LTR</option>
+    <option value="h_rtl">横排 RTL</option>
+    <option value="v_rtl">竖排 RTL</option>
+    <option value="v_ltr">竖排 LTR</option>
+  </select>
+  <label>字大小</label>
+  <input type="number" id="charSizeInput" value="80" min="30" max="300">
+  <label>间距</label>
+  <input type="number" id="gapInput" value="12" min="0" max="100">
+  <label>背景</label>
+  <select id="bgSelect">
+    <option value="beige" selected>米黄色</option>
+    <option value="white">白色</option>
+    <option value="black">黑色</option>
+    <option value="red">红色</option>
+    <option value="grass">草木纸</option>
+    <option value="gold_fleck">金屑纸</option>
+  </select>
+  <label>字色</label>
+  <select id="colorSelect">
+    <option value="black" selected>黑色</option>
+    <option value="white">白色</option>
+    <option value="ink_blue">墨蓝</option>
+    <option value="gold">金色</option>
+    <option value="red">红色</option>
+    <option value="metallic">炫彩金属</option>
+  </select>
+  <button class="btn primary" onclick="doRender()">渲染</button>
+</div>
+
+<script>
+// ---- State ----
+var charData = [];  // [{char, variants, selectedIdx}]
+var currentVariants = null;  // [{page_dir, filename}]
+
+// ---- Search ----
+function doSearch() {
+  var text = document.getElementById('textInput').value.trim();
+  if (!text) { document.getElementById('charSelectList').innerHTML = '<div style="padding:20px;text-align:center;color:#706050;">输入文字</div>'; return; }
+  document.getElementById('loading').style.display = 'flex';
+  fetch('/api/compose/search?text=' + encodeURIComponent(text))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      charData = (data.chars || []).map(function(c) { return { char: c.char, variants: c.variants, selectedIdx: c.variants.length > 0 ? 0 : -1 }; });
+      renderCharList();
+      document.getElementById('loading').style.display = 'none';
+      doRender();
+    })
+    .catch(function() { document.getElementById('loading').style.display = 'none'; });
+}
+
+function renderCharList() {
+  var list = document.getElementById('charSelectList');
+  if (!charData || charData.length === 0) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#706050;">未找到</div>'; return; }
+  var html = '';
+  charData.forEach(function(cd, idx) {
+    var ch = cd.char;
+    var vcount = cd.variants.length;
+    var selIdx = cd.selectedIdx;
+    html += '<div class="char-sel-item">';
+    html += '<div><span class="char-text">' + ch + '</span> <span class="char-pos">(' + vcount + '个)</span></div>';
+    html += '<div>';
+    if (vcount > 0) {
+      var show = cd.variants.slice(0, Math.min(5, vcount));
+      show.forEach(function(v, vi) {
+        var isActive = (vi === selIdx) ? ' active' : '';
+        html += '<img class="var-thumb' + isActive + '" src="/api/image/' + v.page_dir + '/' + encodeURIComponent(v.filename) + '?mode=binary&invert=0&size=60" title="第' + v.page + '页" onclick="event.stopPropagation(); selectVariant(' + idx + ',' + vi + ')">';
+      });
+    } else {
+      html += '<span style="color:#706050;">无</span>';
+    }
+    html += '</div></div>';
+  });
+  list.innerHTML = html;
+}
+
+function selectVariant(charIdx, varIdx) {
+  if (!charData[charIdx]) return;
+  charData[charIdx].selectedIdx = varIdx;
+  renderCharList();
+  doRender();
+}
+
+// ---- Render ----
+function doRender() {
+  var text = document.getElementById('textInput').value.trim();
+  if (!text || !charData || charData.length === 0) return;
+
+  var chars = [];
+  var variants = {};
+  var varIdx = 0;
+  for (var i = 0; i < charData.length; i++) {
+    var cd = charData[i];
+    var ch = cd.char;
+    // For characters in text, match by position
+    // We need to map text positions to charData positions
+  }
+  
+  // Build chars array from text, matching to charData
+  chars = [];
+  variants = {};
+  var dataIdx = 0;
+  for (var ti = 0; ti < text.length; ti++) {
+    var tc = text[ti];
+    chars.push(tc);
+    // Find matching charData entry
+    if (dataIdx < charData.length && charData[dataIdx].char === tc) {
+      var cd = charData[dataIdx];
+      if (cd.selectedIdx >= 0 && cd.selectedIdx < cd.variants.length) {
+        var v = cd.variants[cd.selectedIdx];
+        variants[ti] = { page_dir: v.page_dir, filename: v.filename };
+      }
+      dataIdx++;
+    } else {
+      // Try to find it
+      for (var j = 0; j < charData.length; j++) {
+        if (charData[j].char === tc) {
+          var cd2 = charData[j];
+          if (cd2.selectedIdx >= 0 && cd2.selectedIdx < cd2.variants.length) {
+            var v2 = cd2.variants[cd2.selectedIdx];
+            variants[ti] = { page_dir: v2.page_dir, filename: v2.filename };
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  var params = {
+    cols: parseInt(document.getElementById('colsInput').value) || 5,
+    direction: document.getElementById('dirSelect').value,
+    char_size: parseInt(document.getElementById('charSizeInput').value) || 80,
+    gap: parseInt(document.getElementById('gapInput').value) || 12,
+    text_color: document.getElementById('colorSelect').value,
+  };
+
+  document.getElementById('loading').style.display = 'flex';
+  fetch('/api/compose/render', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chars: chars, variants: variants, params: params }),
+  })
+  .then(function(r) {
+    if (!r.ok) { throw new Error('Render failed'); }
+    return r.blob();
+  })
+  .then(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var img = document.getElementById('previewImg');
+    img.src = url;
+    img.style.display = 'block';
+    img.onload = function() { URL.revokeObjectURL(url); };
+    document.getElementById('noPreview').style.display = 'none';
+    document.getElementById('loading').style.display = 'none';
+
+    // Apply background texture
+    var wrap = document.getElementById('previewWrap');
+    var bgVal = document.getElementById('bgSelect').value;
+    wrap.className = '';
+    if (bgVal === 'grass') wrap.classList.add('bg-grass');
+    else if (bgVal === 'gold_fleck') wrap.classList.add('bg-gold-fleck');
+    else wrap.classList.add('bg-' + bgVal);
+
+    // Metallic overlay
+    var existing = wrap.querySelector('.metallic-overlay');
+    if (existing) existing.remove();
+    if (params.text_color === 'metallic') {
+      var overlay = document.createElement('div');
+      overlay.className = 'metallic-overlay';
+      wrap.appendChild(overlay);
+    }
+  })
+  .catch(function(err) {
+    document.getElementById('loading').style.display = 'none';
+    alert('渲染失败: ' + err.message);
+  });
+}
+
+// ---- Auto-render on Enter ----
+document.getElementById('textInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doSearch();
+});
+
+// Auto-render on param change
+['colsInput','dirSelect','charSizeInput','gapInput','bgSelect','colorSelect'].forEach(function(id) {
+  document.getElementById(id).addEventListener('change', function() { if (charData.length > 0) doRender(); });
+});
+
+// Init with default text
+doSearch();
+</script>
+</body>
+</html>

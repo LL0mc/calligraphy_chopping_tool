@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from flask import Flask, render_template, jsonify, request, send_file
 from config import CROPPED_DIR
+from src.compose_renderer import render_composition
 
 app = Flask(__name__)
 
@@ -157,6 +158,41 @@ def serve_image(img_path):
         return 'Encoding failed', 500
 
     return send_file(io.BytesIO(buf.tobytes()), mimetype='image/png')
+
+# ---------- Compose ----------
+@app.route('/compose')
+def compose():
+    return render_template('compose.html')
+
+@app.route('/api/compose/search')
+def compose_search():
+    text = request.args.get('text', '').strip()
+    if not text:
+        return jsonify({'chars': []})
+    if _index is None:
+        build_index()
+    chars = []
+    for ch in text:
+        var_list = _index.get(ch, [])
+        chars.append({'char': ch, 'variants': var_list})
+    return jsonify({'chars': chars})
+
+@app.route('/api/compose/render', methods=['POST'])
+def compose_render():
+    data = request.get_json(force=True)
+    if not data:
+        return 'Bad request', 400
+    chars = data.get('chars', [])
+    variants = {int(k): v for k, v in data.get('variants', {}).items()}
+    params = data.get('params', {})
+    try:
+        img = render_composition(chars, variants, params)
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        return send_file(buf, mimetype='image/png')
+    except Exception as e:
+        return str(e), 500
 
 # Build index on startup
 build_index()
