@@ -64,9 +64,53 @@
 ## 文件命名规范
 - **调试脚本输出的图片文件名禁止使用中文字符**（PowerShell 编码问题会导致乱码）
 - 使用英文/数字/下划线命名，如 `page_024_step3_raw_ocr.png`
+- **切片图片**命名格式：`{seq:03d}_{char}.png`，如 `001_此.png`（seq 为阅读顺序号，从右到左、上到下编号）
+
+## 架构决策
+
+### 总体架构
+```
+pipeline.py → _ocr_results.json → review_server.py (GUI校对)
+                                         ↓ 提交
+                              /submit → 切片存储 + Obsidian字库
+                                         ↓ 未来
+                              米字格查看器 (Flask独立页面 /grid?char=此)
+```
+
+### 切片存储结构
+```
+output/cropped/
+  {calligrapher}/
+    {source_text}/
+      page_{page:03d}/
+        {seq:03d}_{char}.png
+```
+例：`output/cropped/吴玉生/红楼梦/page_024/001_此.png`
+
+坐标在原图基础上外扩 4px 边距。calligrapher 和 source_text 在 config.py 中配置。
+
+### Obsidian 字库结构
+```
+字库/
+  {calligrapher}/
+    {source_text}/
+      {char}.md
+```
+每个字一个 note，同一页/不同页的同字累加到同一文件中。frontmatter 含 char/calligrapher/source 供 Dataview 查询。
+
+### 阅读顺序
+- 列：从右到左（col 降序）
+- 行：从上到下（row 升序）
+- 适用于：方框编号、列表排序、段落展示、上一/下一导航
+
+### GUI 功能（review_server.py）
+- 方框颜色：红（?/低置信）、黄（形状异常）、蓝（正常）、灰（空）、青（已修正）、绿（选中）
+- 自动保存：点击切框时后台保存，无需手动点保存按钮
+- 段落视图：右侧展示全文（列 | 分隔）
+- 提交：裁剪图片 + 更新 Obsidian 字库
 
 ## 常用命令
+- 启动GUI：`python review_server.py` → http://127.0.0.1:5000/?p=24
+- 批量跑图：`python run_all_7.py`
 - 调试标注图：`python debug_184_boxes.py`
 - OCR 对比：`python debug_ocr_comparison.py`
-- 批量跑图：`python run_all_7.py`
-- 启动GUI：`python review_server.py` → http://127.0.0.1:5000/?p=24

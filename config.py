@@ -37,3 +37,14 @@ CHAR_GAP_THRESHOLD = 15  # 字符间隙阈值（像素）
 
 # 测试页码（从0开始）
 TEST_PAGE_INDEX = 23  # 第24页
+
+# 书法家与文本信息
+CALLIGRAPHER = "吴玉生"
+SOURCE_TEXT = "红楼梦"
+
+# 切片存储
+CROPPED_DIR = os.path.join(OUTPUT_DIR, "cropped")
+
+# Obsidian 字库路径
+OBSIDIAN_VAULT = r"D:\notebooks\Lmc\brew"
+CHAR_DB_DIR = os.path.join(OBSIDIAN_VAULT, "字库")

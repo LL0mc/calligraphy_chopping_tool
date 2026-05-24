@@ -1,9 +1,9 @@
 """校对服务器 v4 - orig_idx 跟踪 + 提交功能"""
-import sys, os, json, cv2, numpy as np, base64, traceback
+import sys, os, json, cv2, numpy as np, base64, traceback, subprocess, time
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, request, jsonify
-from config import PAGES_DIR
+from config import PAGES_DIR, CALLIGRAPHER, SOURCE_TEXT, CROPPED_DIR, CHAR_DB_DIR, PDF_PATH
 from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
@@ -138,15 +138,31 @@ tr.sel{background:#3a3028}
 .msg.ok{background:#2d4a3e;color:#a8c9b8}
 .para{background:#2a2520;padding:10px;border-radius:6px;font-size:14px;line-height:1.5;word-break:break-all;max-height:18vh;overflow-y:auto}
 .h{color:#8a7a68;font-size:12px;margin-top:4px}
+.overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:999}
+.overlay>div{background:#2a2520;padding:30px 50px;border-radius:12px;text-align:center;color:#d4c9b8}
+.spinner{border:4px solid #4a3f35;border-top:4px solid #d4c9b8;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 16px}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+.st{font-size:12px;padding:2px 6px;border-radius:3px;font-weight:bold}
+.st0{background:#3d2222;color:#ff6666}
+.st1{background:#2d4a3e;color:#88cc88}
+.st2{background:#3d3d22;color:#cccc66}
+.st3{background:#333;color:#888}
 </style>
 </head>
 <body>
 <div class="toolbar">
   <span>页码:</span><input type="number" id="pi" value="_PAGE_" min="1" style="width:60px">
   <button onclick="loadPage()">加载</button>
+  <button onclick="goPrev()">◀ 上一页</button>
+  <button onclick="goNext()">下一页 ▶</button>
+  <span id="statusLabel" class="st st0">-</span>
+  <button onclick="skipPage()" style="background:#4a3f35;padding:3px 10px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8;font-size:12px">⏭ 跳过</button>
   <span>选中: <b id="sl">-</b> / _TOTAL_</span>
   <span id="sm" style="color:#888;font-size:13px"></span>
   <button onclick="submitPage()" style="background:#6b5b4a;padding:5px 14px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8">提交</button>
+</div>
+<div id="loadingOverlay" class="overlay" style="display:none">
+  <div><div class="spinner"></div><div id="loadingMsg">处理中...</div></div>
 </div>
 <div class="container">
   <div class="left">
@@ -184,7 +200,6 @@ tr.sel{background:#3a3028}
   <span style="color:#b4dcff">█ 正常</span>
   <span style="color:#ffcc00">█ 形状异常</span>
   <span style="color:#ff4444">█ 低置信/?</span>
-  <span style="color:#555">█ 空</span>
   <span style="color:#00c8ff">█ 已修正</span>
   <span style="color:#00ff00">█ 选中</span>
 </div>
@@ -358,14 +373,35 @@ function saveWait(cb) {
 function sv(cb) { saveWait(cb); }
 
 function delChar() {
-  fetch('/del', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE, i:si})})
+  var delSi = si;
+  fetch('/del', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE, i:delSi})})
     .then(function(r){return r.json();}).then(function(d){
       if (d.ok) {
-        bx.splice(si, 1);
-        if (si >= bx.length) si = bx.length - 1;
-        if (si < 0) si = 0;
+        bx.splice(delSi, 1);
+        var newSi = delSi;
+        if (newSi >= bx.length) newSi = bx.length - 1;
+        if (newSi < 0) newSi = 0;
+        si = newSi;
         rt(); dc();
-        if (bx.length > 0) sc(si);
+        // Show the newly selected box info without triggering saveBg
+        if (bx.length > 0) {
+          var b = bx[si];
+          if (b) {
+            var si2 = getSortedIndices();
+            var pos = -1;
+            for (var k = 0; k < si2.length; k++) { if (si2[k] === si) { pos = k + 1; break; } }
+            document.getElementById('sl').textContent = pos + ' (' + (si+1) + ')';
+            document.getElementById('sm').textContent = b.confidence ? '置信度 '+Math.round(b.confidence*100)+'%' : '';
+            var label = b.corrected_text || b.text || '';
+            document.getElementById('et').value = label;
+            document.getElementById('eo').textContent = label || '(empty)';
+            document.getElementById('ex').value = Math.round(b.x / SCALE);
+            document.getElementById('ey').value = Math.round(b.y / SCALE);
+            document.getElementById('ew').value = Math.round(b.w / SCALE);
+            document.getElementById('eh').value = Math.round(b.h / SCALE);
+            cropImg(); dc(); updatePara();
+          }
+        }
         document.getElementById('msg').textContent = d.m;
         document.getElementById('msg').className = 'msg ok';
       } else {
@@ -375,12 +411,16 @@ function delChar() {
 }
 
 function addChar() {
-  var last = bx[bx.length-1];
-  var nx = last ? last.x : 100;
-  var ny = last ? Math.min(last.y + last.h + 10, 3000) : 100;
+  var si2 = getSortedIndices();
+  var pos = -1;
+  for (var k = 0; k < si2.length; k++) { if (si2[k] === si) { pos = k; break; } }
+  var refIdx = pos >= 0 ? si : -1;
+  var ref = refIdx >= 0 ? bx[refIdx] : bx[bx.length-1];
+  var nx = ref ? (ref.x + ref.w + 10) : 100;
+  var ny = ref ? ref.y : 100;
   var nw = 120, nh = 120;
   fetch('/add', {method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({p:PAGE, x:Math.round(nx/SCALE), y:Math.round(ny/SCALE), w:Math.round(nw/SCALE), h:Math.round(nh/SCALE)})})
+    body:JSON.stringify({p:PAGE, i:refIdx, x:Math.round(nx/SCALE), y:Math.round(ny/SCALE), w:Math.round(nw/SCALE), h:Math.round(nh/SCALE)})})
     .then(function(r){return r.json();}).then(function(d){
       if (d.ok) {
         var c = d.entry;
@@ -404,11 +444,12 @@ function addChar() {
 function submitPage() {
   saveWait(function(){
     if (!confirm('提交第'+PAGE+'页审查结果，进入下一页？')) return;
+    showLoading('正在提交第'+PAGE+'页...');
     fetch('/submit', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE})})
       .then(function(r){return r.json();}).then(function(d){
-        if (d.ok) { window.location.href = '/?p=' + (PAGE + 1); }
-        else { document.getElementById('msg').textContent = '提交失败'; }
-      });
+        if (d.ok) { hideLoading(); gotoPage(PAGE + 1); }
+        else { hideLoading(); document.getElementById('msg').textContent = d.m || '提交失败'; }
+      }).catch(function(e){ hideLoading(); alert('提交请求失败: '+e); });
   });
 }
 
@@ -435,9 +476,7 @@ function dc() {
       color = '#00ff00';
     } else if (b.manual_corrected) {
       color = '#00c8ff';
-    } else if (b.confidence < 0.01 && (b.text === '' || b.text === '?')) {
-      color = '#555';
-    } else if (b.text === '?' || b.confidence < 0.6) {
+    } else if (b.text === '?' || b.confidence < 0.8) {
       color = '#ff4444';
     } else if (Math.max(w/h, h/w) > 2.5) {
       color = '#ffcc00';
@@ -447,9 +486,16 @@ function dc() {
     ctx.strokeStyle = color;
     ctx.lineWidth = i === si ? 3 : 1.5;
     ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = color;
-    ctx.font = '10px sans-serif';
-    ctx.fillText(dn[i], x+2, y+10);
+    var lbl = b.corrected_text || b.text || '?';
+    ctx.font = '16px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    var tx = x - 3, ty = y;
+    if (tx < 20) { tx = x + w + 3; ctx.textAlign = 'left'; }
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(lbl, tx, ty);
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
   }
   // Ghost during drag
   if (dr && ds) {
@@ -582,7 +628,68 @@ function mu(e) {
 }
 
 function loadPage() {
-  window.location.href = '/?p=' + document.getElementById('pi').value;
+  var p = parseInt(document.getElementById('pi').value);
+  gotoPage(p);
+}
+
+function showLoading(msg) {
+  document.getElementById('loadingMsg').textContent = msg || '处理中...';
+  document.getElementById('loadingOverlay').style.display = 'flex';
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+function checkStatus(p, cb) {
+  fetch('/status?p=' + p).then(function(r){return r.json();}).then(function(d){
+    var label = document.getElementById('statusLabel');
+    var m = {unprocessed:'未检测', ready:'未提交', submitted:'已提交', skipped:'已跳过'};
+    var cls = {unprocessed:'st0', ready:'st1', submitted:'st2', skipped:'st3'};
+    label.textContent = m[d.status] || d.status;
+    label.className = 'st ' + (cls[d.status] || 'st0');
+    if (cb) cb(d);
+  });
+}
+
+function gotoPage(p) {
+  if (p < 1) return;
+  document.getElementById('pi').value = p;
+  showLoading('检查页面状态...');
+  fetch('/status?p=' + p).then(function(r){return r.json();}).then(function(d){
+    if (d.status === 'unprocessed') {
+      showLoading('正在检测第' + p + '页...');
+      fetch('/run_page', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:p})})
+        .then(function(r){return r.json();}).then(function(d2){
+          if (d2.ok) { window.location.href = '/?p=' + p; }
+          else { hideLoading(); alert(d2.m); }
+        }).catch(function(e){ hideLoading(); alert('检测请求失败: '+e); });
+    } else if (d.status === 'skipped') {
+      if (confirm('第' + p + '页已跳过，是否取消跳过并重新检测？')) {
+        showLoading('正在检测第' + p + '页...');
+        fetch('/run_page', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:p})})
+          .then(function(r){return r.json();}).then(function(d2){
+            if (d2.ok) { window.location.href = '/?p=' + p; }
+            else { hideLoading(); alert(d2.m); }
+          }).catch(function(e){ hideLoading(); alert('检测请求失败: '+e); });
+      } else { hideLoading(); }
+    } else {
+      window.location.href = '/?p=' + p;
+    }
+  }).catch(function(e){ hideLoading(); alert('状态检查失败: '+e); });
+}
+
+function goPrev() { gotoPage(PAGE - 1); }
+function goNext() { gotoPage(PAGE + 1); }
+
+function skipPage() {
+  if (!confirm('跳过第' + PAGE + '页？')) return;
+  showLoading('正在跳过...');
+  fetch('/skip', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE})})
+    .then(function(r){return r.json();}).then(function(d){
+      hideLoading();
+      if (d.ok) { checkStatus(PAGE); }
+      else { alert(d.m); }
+    }).catch(function(e){ hideLoading(); alert('跳过请求失败: '+e); });
 }
 
 function initFirst() {
@@ -599,7 +706,7 @@ function initFirst() {
   document.getElementById('eh').value = Math.round(b.h / SCALE);
   cropImg(); dc(); updatePara();
 }
-document.addEventListener('DOMContentLoaded', function(){ rt(); });
+document.addEventListener('DOMContentLoaded', function(){ rt(); checkStatus(PAGE); });
 
 function setupCanvas() {
   var img = document.getElementById('img');
@@ -762,10 +869,22 @@ def add_char():
             with open(corr_path, encoding='utf-8') as f:
                 corr = json.load(f)
 
+        # Determine insertion position based on selected item
+        after_idx = req.get('i', -1)
+        if after_idx >= 0 and after_idx < len(clean):
+            target = clean[after_idx]
+            new_col = target.get('col', 0)
+            new_row = target.get('row', 0) + 0.5
+        else:
+            # Fallback: use max orig_idx
+            max_oi = max([c.get('orig_idx', -1) for c in corr] + [len(raw) - 1])
+            new_col = 0
+            new_row = max_oi + 1
+
         max_oi = max([c.get('orig_idx', -1) for c in corr] + [len(raw) - 1])
         new_entry = {
             'orig_idx': max_oi + 1, 'added': True,
-            'col': 0, 'row': max_oi + 1,
+            'col': new_col, 'row': new_row,
             'x': req['x'], 'y': req['y'],
             'w': req['w'], 'h': req['h'],
             'text': '', 'confidence': 0,
@@ -782,15 +901,224 @@ def add_char():
 
 @app.route('/submit', methods=['POST'])
 def submit_page():
-    req = request.json
-    page = req['p']
-    # Mark as reviewed by creating a marker file
-    marker = os.path.join(PAGES_DIR, f"page_{page:03d}_reviewed.json")
-    raw, clean, mapping = load_clean(page)
-    data = {'pages': [{'page': page, 'count': len(clean)}]}
-    with open(marker, 'w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return jsonify({'ok': True})
+    try:
+        req = request.json
+        page = req['p']
+        raw, clean, mapping = load_clean(page)
+        if raw is None:
+            return jsonify({'ok': False, 'm': '页面数据不存在'})
+
+        # Load full-res image
+        img = load_img(page)
+        if img is None:
+            return jsonify({'ok': False, 'm': '图片加载失败'})
+
+        # Sort by reading order: col DESC, row ASC
+        clean_sorted = sorted(clean, key=lambda d: (-d['col'], d['row']))
+
+        # Crop and save each character
+        page_dir = os.path.join(CROPPED_DIR, CALLIGRAPHER, SOURCE_TEXT, f"page_{page:03d}")
+        # Clean old cropped directory
+        if os.path.exists(page_dir):
+            import shutil
+            shutil.rmtree(page_dir)
+        os.makedirs(page_dir, exist_ok=True)
+
+        char_entries = []
+        skip_count = 0
+        for seq, d in enumerate(clean_sorted, 1):
+            ch = d.get('corrected_text') or d.get('text') or '?'
+            safe_char = ch.strip()
+            if not safe_char: safe_char = 'unk'
+            try:
+                x, y, w, h = d['x'], d['y'], d['w'], d['h']
+                if w <= 0 or h <= 0:
+                    skip_count += 1; continue
+                x1 = max(0, x - 4); y1 = max(0, y - 4)
+                x2 = min(img.shape[1], x + w + 4); y2 = min(img.shape[0], y + h + 4)
+                if x1 >= x2 or y1 >= y2:
+                    skip_count += 1; continue
+                crop = img[y1:y2, x1:x2]
+
+                fname = f"{seq:03d}_{safe_char}.png"
+                fpath = os.path.join(page_dir, fname)
+                # Use PIL to handle Unicode file paths on Windows
+                img_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+                Image.fromarray(img_rgb).save(fpath)
+            except Exception as e:
+                print(f"  skip char {seq} '{safe_char}': {e}")
+                skip_count += 1
+                continue
+
+            char_entries.append({
+                'seq': seq, 'char': safe_char,
+                'col': d['col'], 'row': d['row'],
+                'confidence': d.get('confidence', 0),
+                'x': x, 'y': y, 'w': w, 'h': h,
+                'rel_path': os.path.join("cropped", CALLIGRAPHER, SOURCE_TEXT, f"page_{page:03d}", fname),
+            })
+
+        # Build full text in reading order for context
+        full_text = [e['char'] for e in char_entries]
+
+        # Update Obsidian character database — collect per char then write once
+        base_rel = os.path.join(CALLIGRAPHER, SOURCE_TEXT)
+        note_dir = os.path.join(CHAR_DB_DIR, base_rel)
+        os.makedirs(note_dir, exist_ok=True)
+
+        # Group entries by char
+        from collections import defaultdict
+        char_groups = defaultdict(list)
+        seen = set()
+        for e in char_entries:
+            ch = e['char']
+            if ch == '?' or ch == 'unk':
+                continue
+            # Deduplicate same img link per char per page
+            key = (ch, e['seq'])
+            if key not in seen:
+                seen.add(key)
+                char_groups[ch].append(e)
+
+        for ch, entries in char_groups.items():
+            note_path = os.path.join(note_dir, f"{ch}.md")
+            rows = []
+            for e in entries:
+                img_link = f"![[{e['rel_path'].replace(os.sep, '/')}]]"
+                idx = e['seq'] - 1
+                before = ''.join(full_text[max(0, idx-3):idx])
+                after = ''.join(full_text[idx+1:idx+4])
+                ctx = ''
+                if before: ctx += before + ' '
+                ctx += '[' + ch + ']'
+                if after: ctx += ' ' + after
+                rows.append(f"| {page} | {e['seq']} | {img_link} | {e['confidence']:.2f} | {ctx} |")
+
+            # Read existing content if note exists (only keep header/frontmatter)
+            existing_rows = []
+            if os.path.exists(note_path):
+                with open(note_path, 'r', encoding='utf-8') as f:
+                    existing = f.read()
+                # Extract existing rows (skip header and separator)
+                in_table = False
+                for line in existing.splitlines():
+                    if line.startswith('|') and '|---|---|' not in line and in_table:
+                        existing_rows.append(line)
+                    elif '|---|---|' in line:
+                        in_table = True
+                # Remove rows from this page to avoid dupes on re-submit
+                existing_rows = [r for r in existing_rows if not r.startswith(f'| {page} |')]
+
+            all_rows = existing_rows + rows
+            table = "\n".join([
+                f"---",
+                f'char: "{ch}"',
+                f'calligrapher: "{CALLIGRAPHER}"',
+                f'source: "{SOURCE_TEXT}"',
+                f"---",
+                f"",
+                f"# {ch}",
+                f"",
+                f"| 页面 | 序号 | 图片 | 置信度 | 上下文 |",
+                f"|------|------|------|--------|--------|",
+            ])
+            if all_rows:
+                table += "\n" + "\n".join(all_rows) + "\n"
+
+            with open(note_path, 'w', encoding='utf-8') as f:
+                f.write(table)
+
+        # Mark as reviewed
+        marker = os.path.join(PAGES_DIR, f"page_{page:03d}_reviewed.json")
+        data = {'pages': [{'page': page, 'count': len(clean)}]}
+        with open(marker, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        # Remove skipped marker if present (re-detect override)
+        skipped_marker = os.path.join(PAGES_DIR, f"page_{page:03d}_skipped.json")
+        if os.path.exists(skipped_marker):
+            os.remove(skipped_marker)
+
+        msg = f'已提交第{page}页，裁剪{len(char_entries)}字，录入字库{len(set(e["char"] for e in char_entries))}字'
+        if skip_count:
+            msg += f'，跳过{skip_count}个异常框'
+        return jsonify({'ok': True, 'm': msg})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'ok': False, 'm': f'提交失败: {e}'})
+
+def get_page_status(page):
+    """Check page status: unprocessed / ready / submitted / skipped"""
+    skipped = os.path.exists(os.path.join(PAGES_DIR, f"page_{page:03d}_skipped.json"))
+    if skipped:
+        return "skipped"
+    ocr = os.path.exists(os.path.join(PAGES_DIR, f"page_{page:03d}_ocr_results.json"))
+    if not ocr:
+        return "unprocessed"
+    reviewed = os.path.exists(os.path.join(PAGES_DIR, f"page_{page:03d}_reviewed.json"))
+    return "submitted" if reviewed else "ready"
+
+@app.route('/status')
+def page_status():
+    page = request.args.get('p', 24, type=int)
+    status = get_page_status(page)
+    count = 0
+    if status in ("ready", "submitted"):
+        raw, clean, mapping = load_clean(page)
+        if clean:
+            count = len(clean)
+    return jsonify({'status': status, 'count': count, 'page': page})
+
+@app.route('/run_page', methods=['POST'])
+def run_page():
+    try:
+        req = request.json
+        page = req['p']
+        status = get_page_status(page)
+        if status == "submitted":
+            return jsonify({'ok': False, 'm': f'第{page}页已提交，不可重新检测'})
+
+        # Remove skipped marker if present
+        skipped_path = os.path.join(PAGES_DIR, f"page_{page:03d}_skipped.json")
+        if os.path.exists(skipped_path):
+            os.remove(skipped_path)
+
+        # Run pipeline for this page via subprocess
+        pipe_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pipeline.py')
+        result = subprocess.run(
+            [sys.executable, pipe_path, str(page), '--no-correct'],
+            capture_output=True, text=True, timeout=120,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        stdout = result.stdout[-500:] if result.stdout else ''
+        stderr = result.stderr[-500:] if result.stderr else ''
+        print(f"pipeline page {page} stdout: {stdout[:200]}")
+        if stderr:
+            print(f"pipeline page {page} stderr: {stderr[:200]}")
+
+        # Verify results
+        new_status = get_page_status(page)
+        if new_status == "unprocessed":
+            return jsonify({'ok': False, 'm': f'检测失败: {result.stderr[:200]}'})
+
+        return jsonify({'ok': True, 'm': f'第{page}页检测完成'})
+    except subprocess.TimeoutExpired:
+        return jsonify({'ok': False, 'm': '检测超时（>120s）'})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'ok': False, 'm': f'检测失败: {e}'})
+
+@app.route('/skip', methods=['POST'])
+def skip_page():
+    try:
+        req = request.json
+        page = req['p']
+        marker = os.path.join(PAGES_DIR, f"page_{page:03d}_skipped.json")
+        with open(marker, 'w', encoding='utf-8') as f:
+            json.dump({'page': page, 'skipped': True}, f)
+        return jsonify({'ok': True, 'm': f'已跳过第{page}页'})
+    except Exception as e:
+        return jsonify({'ok': False, 'm': f'跳过失败: {e}'})
 
 if __name__ == '__main__':
     import webbrowser

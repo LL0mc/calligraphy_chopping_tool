@@ -36,7 +36,7 @@ def detect_main_content_bbox(gray: np.ndarray, min_density_ratio: float = 0.15, 
             content_bottom = y
             break
 
-    if content_start is None or content_end is None:
+    if content_start is None or content_end is None or content_top is None or content_bottom is None:
         return (0, 0, w, h)
 
     margin = 20

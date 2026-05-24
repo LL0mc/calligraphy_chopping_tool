@@ -6,6 +6,9 @@ __pycache__/
 # Output
 output/
 
+# Archive
+archive/
+
 # IDE
 .vscode/
 .idea/
