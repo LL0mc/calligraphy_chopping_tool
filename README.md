@@ -1,13 +1,13 @@
 # 字帖校对系统 — 红楼梦 吴玉生硬笔行书
 
-将竖排书法字帖逐字切割、OCR 识别、人工校对、浏览检索，最终建立可检索的 Obsidian 字库。
+将竖排书法字帖逐字切割、OCR 识别、人工校对、浏览检索、集字排版，最终建立可检索的 Obsidian 字库。
 
 <div align="center">
   <img src="docs/images/architecture.png" alt="系统架构" width="85%">
-  <p><em>总体架构：Pipeline 检测 → GUI 校对 → 切片存储 + Obsidian 字库 → 字符查看器</em></p>
+  <p><em>总体架构：Pipeline 检测 → GUI 校对 → 切片存储 + Obsidian 字库 → 字符查看器 / 集字排版</em></p>
 </div>
 
-## 两大 Web 应用
+## 三大 Web 应用
 
 ### 1. 校对服务器 (review_server) — Port 5000
 
@@ -34,11 +34,6 @@ Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 
 提交完成后浏览检索所有已裁剪单字，支持多模式对比和米字格/田字格参考：
 
-<div align="center">
-  <img src="docs/images/char_viewer_preview.png" alt="字符查看器界面" width="85%">
-  <p><em>字符查看器：左侧检索栏、米字格居中显示、下方缩略图切换同字不同页</em></p>
-</div>
-
 - **检索**：按汉字搜索，列出所有变体（跨页面）
 - **米字格/田字格**：双模式切换，辅助书法间架结构分析
 - **四种处理模式**：原图、清晰增强（CLAHE + 锐化）、双边滤波、二值
@@ -48,24 +43,24 @@ Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 - **键盘快捷键**：← 上一个、→ 下一个、R 重置、I 反色
 - **缩略图条**：同字不同页的变体切换
 
-<div align="center">
-  <img src="docs/images/mode_comparison.png" alt="四种处理模式对比" width="85%">
-  <p><em>同一字符在 4 种处理模式下的渲染效果</em></p>
-</div>
+### 3. 集字排版 (/compose) — Port 5001
 
-<div align="center">
-  <img src="docs/images/invert_comparison.png" alt="反色对比" width="60%">
-  <p><em>原图与反色效果，背景色自动匹配图像主体</em></p>
-</div>
+Pillow 全分辨率排版引擎，将裁剪的单字拼合成书法作品：
+
+- **方向支持**：竖排 RTL/LTR、横排 LTR/RTL
+- **字粒**：二进制原图直接粘贴，不缩放、不模糊
+- **自动适配**：格子大小 = max_char_dim × 1.15，保证不溢出
+- **标点处理**：小号覆盖层（格子的 45%），右下角定位
+- **背景**：米白/白/黑/红 + 洒金宣（不规则多边形）、草木纸（纤维纹理）
+- **字色**：黑/白/墨蓝/金/红 5 色
+- **变体选择**：侧边栏按字搜索，缩略图切换不同页面同一字的写法
+- **点击定位**：预览区点击任意字 → 侧边栏自动滚动到对应变体
+- **缩放**：滑块 0.1–5.0 倍，居中缩放
+- **导出**：PNG（客户端下载）、PDF（服务端 fpdf2 全分辨率嵌入）
 
 ## 流程
 
 ### Step 1: 检测 Pipeline
-
-<div align="center">
-  <img src="docs/images/pipeline_steps.png" alt="Pipeline 步骤可视化" width="90%">
-  <p><em>Pipeline 处理流程：从灰度图 → OCR 检测 → 精炼识别</em></p>
-</div>
 
 关键步骤：
 
@@ -80,19 +75,7 @@ Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 9. **去重**：IoU > 0.3 的保留较大框
 10. **后处理**：按列检测异常大框（中位面积 3×以上），缩小至合理尺寸
 
-### Step 2: GUI 人工校对
-
-<div align="center">
-  <img src="docs/images/gui_preview.png" alt="GUI 校对界面" width="80%">
-  <p><em>Flask Web 校对界面</em></p>
-</div>
-
-### Step 3: 提交 → 切片存储 + Obsidian 字库
-
-<div align="center">
-  <img src="docs/images/cropped_samples.png" alt="裁剪字符示例" width="60%">
-  <p><em>提交后按阅读顺序命名的单字切片</em></p>
-</div>
+### Step 2: GUI 人工校对 + 提交 → 切片存储 + Obsidian 字库
 
 点击「提交」后自动完成：
 
@@ -108,7 +91,7 @@ Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 ```
 ├── pipeline.py              # 全流程 Pipeline 入口
 ├── review_server.py         # Flask GUI 校对 (port 5000)
-├── char_viewer.py           # Flask 字符查看器 (port 5001)
+├── char_viewer.py           # Flask 字符查看器 + 集字排版 (port 5001)
 ├── config.py                # 全局配置
 ├── start_gui.bat            # review_server 启动脚本
 ├── start_char_viewer.bat    # char_viewer 启动脚本
@@ -119,10 +102,10 @@ Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 │   ├── char_segmenter.py     # 字符切割（核心：OCR + 连通域精炼）
 │   ├── ocr_recognizer.py     # OCR 识别
 │   ├── confidence_handler.py # 置信度处理与导出
-│   ├── corrector.py          # 诗词自动校对（基于 LCS）
-│   └── obsidian_export.py    # Obsidian 导出（旧版）
+│   └── compose_renderer.py   # Pillow 排版引擎（集字排版）
 ├── templates/
-│   └── char_viewer.html      # 字符查看器 Fabric.js 前端
+│   ├── char_viewer.html      # 字符查看器 Fabric.js 前端
+│   └── compose.html          # 集字排版前端
 ├── static/
 │   └── js/fabric.min.js      # Fabric.js 5.3.0（本地 BootCDN 拷贝）
 ├── data/
@@ -142,7 +125,7 @@ Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 python review_server.py
 # → http://127.0.0.1:5000/?p=24
 
-# 字符查看器
+# 字符查看器 + 集字排版
 python char_viewer.py
 # → http://127.0.0.1:5001/
 ```
@@ -154,9 +137,6 @@ python char_viewer.py
 ```bash
 # 单页运行（不自动校对）
 python pipeline.py 24 --no-correct
-
-# 批量运行 7 页
-python run_all_7.py
 ```
 
 ## 架构决策
@@ -180,6 +160,13 @@ python run_all_7.py
 ### 背景色自适应取样
 
 字符查看器使用直方图峰值检测：统计图像亮度分布，找到峰值（背景色），在该值 ±30 范围内采样平均。自动适配黑底白字/白底黑字两种字帖类型。反色时背景色也随之翻转。
+
+### 集字排版引擎设计
+
+- **无缩放宽高**：二进制字图以原始分辨率粘贴，绝不缩放，保证笔画清晰
+- **自动格子**：`max_char_dim × 1.15` 适配最大字，永不溢出
+- **标点覆盖层**：占格子 45%，右下角定位，不影响主字区域
+- **背景 baked in**：洒金宣、草木纸等纹理以 Pillow 原生绘制，非 CSS 模拟
 
 ## 关键修复历史
 

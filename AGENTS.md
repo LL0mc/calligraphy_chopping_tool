@@ -1,116 +1,121 @@
-# 项目注意事项
+# Project Notes
 
-## 文件修改规范
-- **禁止使用 `write` 工具直接覆盖现有文件**，必须先用 `read` 读取，再用 `edit` 进行增量修改
-- 每次修改保留足够上下文，方便用户对比差异
-- 如需创建新文件，先确认目标路径不存在
+## Core Principles
+- `write` tool is banned for existing files — always `read` then `edit`
+- Pipeline v19: OCR + connectivity-domain refinement for broken strokes (feibai)
+- `detect_main_content_bbox` cropping before OCR improves recall on vertical text
+- Dilate kernel (config param): aids feibai stroke detection for localization only; final crop on original image
+- Small-annotation characters merge into main column, never discarded
+- Dedup IoU threshold 0.3, keep larger box
 
-## 本项目核心原则
-- OCR 裁剪优于原图：`detect_main_content_bbox` 裁剪后跑 OCR 效果更好
-- refine 使用 v13-v15 增强版逻辑：标点排除 + seed 优先 + 距离合并 + 过大框收缩
-- `dilate_kernel` 膨胀参数（config中设置或传参）：辅助飞白（feibai）断裂笔画的裁剪，仅做辅助定位，最终在原图裁剪
-- 小字标注需合并到主列，不单独丢弃
-- 去重 IoU 阈值 0.3，保留面积较大的框
+## Pipeline (v19)
 
-## 当前 Pipeline 技术路线（v16）
+### Flow
+1. **Render** → grayscale 2496×3720 (A4-proportional)
+2. **Content crop** → `detect_main_content_bbox` sliding window
+3. **OCR raw detection** → `get_ocr_char_boxes` via RapidOCR (char-level, with original text + confidence)
+4. **Punctuation filter** → exclude punctuation & empty boxes, record as `punctuation_boxes`
+5. **Column clustering** → X-center clustering, sub-column split, small-char merge, column-width filter
+6. **Missing char detection** → `detect_missing_chars_in_gaps`:
+   - Gap merge distance: 80px (up from 40, fixes 枉 split)
+   - Column-tail search limit: ≤ 2×avg_height
+   - Ink-tail check: candidate < 25% avg_height from char above → skip
+   - Overlap check: candidate overlaps >50% with char above → skip
+7. **CC refinement** → `refine_char_bbox`:
+   - Punctuation exclusion: component center inside punctuation_boxes & no OCR overlap → skip
+   - `claimed_regions`: top-to-bottom per-column, prevents downstream char stealing components
+   - Oversize fallback: area > 2×OCR area → exclude ROI-boundary-touching components
+8. **OCR recognition** → `recognize_characters` prefers `original_text` (score≥0.6), re-OCR only when empty
+9. **Dedup** → `remove_overlapping_boxes`: IoU 0.3, keep larger
+10. **Post-process** → per-column outlier shrink: 3× median area threshold
 
-### 流程
-1. **渲染**：汉字→灰度图，2496×3720（A4等比例）
-2. **内容裁剪**：`detect_main_content_bbox` — 滑动窗口检测主要内容区域
-3. **OCR原始检测**：`get_ocr_char_boxes` — RapidOCR 单字级检测（含原文、置信度）
-4. **标点过滤**：排除标点符号和空文本框，记录为 `punctuation_boxes` 供 refine 阶段排除
-5. **分列**：按 x 中心坐标聚类，拆分子列，合并行内小字到主列，按列宽过滤书法列
-6. **遗漏字符检测**：`detect_missing_chars_in_gaps` — 间隙+列尾检测遗漏字符
-   - 间隙合并距离阈值：80px（从 40 提升，修复 枉 分裂）
-   - 列尾搜索限制：≤ 2×avg_height，防止远距离墨迹误检
-   - 列尾 ink-tail 检查：候选距上方字符 < 25% avg_height 跳过
-   - 列尾重叠检查：候选项与上方字符重叠 > 50% 跳过
-7. **连通域精炼切割**：`refine_char_bbox` — 以 OCR 框为中心，连通域分析精确裁剪
-   - 标点排除：component center 落入 punctuation_boxes 且不 overlap OCR 框的跳过
-   - claimed_regions：同列从上到下处理，防止后字符窃取前字符连通分量
-   - 过大框回退：面积 > 2×OCR面积时，排除与 ROI 边界接触的组件
-8. **OCR识别**：`recognize_characters` — 优先使用 `original_text`（步骤3检测的原文），仅在原文为空时重新OCR
-9. **去重**：`remove_overlapping_boxes` — IoU 阈值 0.3，保留面积较大的框
-10. **后处理**：按列检测异常大框，中位面积 3× 阈值缩小
+### Three Key Fixes (2026-05-23)
+1. `ocr_recognizer.py`: prefer `original_text`/`original_score` over re-OCR
+2. `char_segmenter.py`: gap merge distance 40→80
+3. `char_segmenter.py`: column-tail triple guard — search ≤2×avg_h, ink-tail skip, overlap >50% skip
 
-### 三个关键修复（2026-05-23 应用）
-1. **`ocr_recognizer.py`**: `recognize_characters()` 优先使用 `original_text`/`original_score`，仅在原文为空时重新OCR
-2. **`char_segmenter.py`**: `detect_missing_chars_in_gaps` 间隙组件合并距离 40→80（修 枉 分裂）
-3. **`char_segmenter.py`**: 列尾检测三项限制——搜索范围 ≤2×avg_height、ink-tail 跳过、重叠 >50% 跳过
+## Compose Layout Engine (v19 added)
+- **`src/compose_renderer.py`**: Pillow-based layout engine
+  - Auto cell size = `max(max_char_w, max_char_h) × 1.15` — never overflows
+  - Binary images loaded at original resolution, NEVER pre-scaled
+  - RGBA chars pasted at original pixel size (no per-char scaling)
+  - Vertical/horizontal, LTR/RTL directions
+  - Newline → column break; space → blank cell
+  - Punctuation: small overlay (45% of cell), bottom-right, font 70% of overlay
+  - Background colors baked; gold_fleck and grass rendered as full-res Pillow patterns
+  - Gold fleck: irregular polygons (5–10 sides, radius 5–18), density w×h/6000
+  - Grass: 4-angle fibers, 50–200px, width 3–6, alpha 25–60
+  - 5 text colors (black / white / ink_blue / gold / red)
+  - Left margin = gap × 2
 
-### 效果（7页测试）
-| 页面 | 原版 | 修复后 | 差值 |
-|------|------|--------|------|
-| P24  | 42框 | 39框 | -3 |
-| P27  | 104框 | 101框 | -3 |
-| P30  | 71框 | 66框 | -5 |
-| P91  | 40框 | 39框 | -1 |
-| P184 | 63框 | 58框 | -5 |
-| P187 | 53框 | 49框 | -4 |
-| P210 | 56框 | 49框 | -7 |
+- **Web GUI** (`/compose` on port 5001):
+  - Search sidebar: char-by-char variant selector with thumbnails
+  - Param bar: cols, direction, char_size, gap, bg, text_color
+  - Zoom slider (0.1–5.0, step 0.01), ZOOM_BASE=0.40
+  - Click-to-select: maps textIdx→dataIdx via newline offset
+  - Export PNG: client-side download from cached blob
+  - Export PDF: server endpoint via fpdf2, full-resolution embed
 
-## 已知问题（已记录，暂未修复）
-- **巷**（第30页，左边界）：左边撇超出 refine 框约39px，因为上左"共"部的纸间空隙距 OCR 中心125px超过 merge_radius 被排除。纸间方案固有限制，暂未修复。
-- **飞白**（broken strokes）：笔画断裂处纸间空隙与外纸连通，导致外围候选组件被排除。目前膨胀方案效果过宽，暂不启用。
-- **小圈/注释标记干扰**：部分页面上有红笔小圈标记（如标注的句读符号），被 OCR 检测为字符后混入主列，影响 refine 和排版。需单独识别并排除。
-- **标点符号与字符粘连**：句号等小标点与字符笔画在二值图中有时粘连，导致 refine 时被当作字符组件合并进框，或反过来污染相邻字符的纸间空隙。当前排除逻辑（component center + overlap_ocr）已有改善，但极端情况仍有残留。
+## Known Issues (unfixed)
+- **巷** (p30, left boundary): left stroke 39px outside refine box — inter-char gap > merge_radius from OCR center
+- **Feibai** (broken strokes): broken-stroke gaps connect to outer whitespace, excluding candidate components
+- **Red-circle annotations**: mistaken as chars by OCR, affecting refine and layout
+- **Punctuation-char adhesion**: small marks merge with strokes in binary image
 
-## 已修复问题记录
-- **光**（第78页，右半部被切）：右捺笔成细小连通分量（6×14px），距OCR中心115px > merge_radius=100 被过滤。修复：`overlap_ocr`组件始终保留，不依赖距离。
-- **P24/P184/P210 列尾墨迹假阳性**: 列尾搜索限制在 2×avg_height，P210 减少 7 个假阳性框
-- **枉**（P24 分裂）：间隙组件合并距离 40→80，中心距 69.6px 的两个半框正确合并
-- **口述偏移**（P184 间隙误检）：间隙候选 ink-tail + 重叠检查，排除 53×23 小墨点
+## Fixed Issues
+- **光** (p78): right na-stroke small component (6×14px), 115px from OCR center > merge_radius=100. Fix: `overlap_ocr` components always kept regardless of distance
+- **P24/P184/P210 tail ink false positives**: tail search ≤2×avg_height, P210 -7 false boxes
+- **枉** (p24 split): gap merge distance 40→80, two halves (69.6px apart) merged
+- **口述偏移** (p184 gap false): ink-tail + overlap check excludes 53×23 ink dot
 
-## 文件命名规范
-- **调试脚本输出的图片文件名禁止使用中文字符**（PowerShell 编码问题会导致乱码）
-- 使用英文/数字/下划线命名，如 `page_024_step3_raw_ocr.png`
-- **切片图片**命名格式：`{seq:03d}_{char}.png`，如 `001_此.png`（seq 为阅读顺序号，从右到左、上到下编号）
+## Filename Conventions
+- Debug output images: English/underscore only (PowerShell encoding), e.g. `page_024_step3_raw_ocr.png`
+- Sliced chars: `{seq:03d}_{char}.png`, e.g. `001_此.png` (reading order: RTL cols, top-down rows)
 
-## 架构决策
-
-### 总体架构
+## Architecture
+### Overview
 ```
-pipeline.py → _ocr_results.json → review_server.py (GUI校对)
-                                         ↓ 提交
-                              /submit → 切片存储 + Obsidian字库
-                                         ↓ 未来
-                              米字格查看器 (Flask独立页面 /grid?char=此)
+pipeline.py → _ocr_results.json → review_server.py (GUI review)
+                                         ↓ submit
+                              /submit → sliced images + Obsidian char DB
+                                              ↓
+                              char_viewer.py (port 5001)
+                                ├── / (char browser, Fabric.js)
+                                └── /compose (layout engine, Pillow)
+                                     └── export PNG / PDF
 ```
 
-### 切片存储结构
+### Sliced Storage
 ```
-output/cropped/
-  {calligrapher}/
-    {source_text}/
-      page_{page:03d}/
-        {seq:03d}_{char}.png
+output/cropped/{calligrapher}/{source_text}/page_{page:03d}/{seq:03d}_{char}.png
 ```
-例：`output/cropped/吴玉生/红楼梦/page_024/001_此.png`
+4px padding. calligrapher & source_text from config.py.
 
-坐标在原图基础上外扩 4px 边距。calligrapher 和 source_text 在 config.py 中配置。
-
-### Obsidian 字库结构
+### Obsidian Char DB
 ```
-字库/
-  {calligrapher}/
-    {source_text}/
-      {char}.md
+{obsidian_vault}/字库/{calligrapher}/{source_text}/{char}.md
 ```
-每个字一个 note，同一页/不同页的同字累加到同一文件中。frontmatter 含 char/calligrapher/source 供 Dataview 查询。
+One note per char. Frontmatter: char/calligrapher/source for Dataview. Table of all occurrences with image embed + confidence + context (3 chars before/after).
 
-### 阅读顺序
-- 列：从右到左（col 降序）
-- 行：从上到下（row 升序）
-- 适用于：方框编号、列表排序、段落展示、上一/下一导航
+### Reading Order
+- Columns: right→left (col descending)
+- Rows: top→bottom (row ascending)
+- Applies to: box indices, list sort, paragraph view, prev/next navigation
 
-### GUI 功能（review_server.py）
-- 方框颜色：红（?/低置信）、黄（形状异常）、蓝（正常）、灰（空）、青（已修正）、绿（选中）
-- 自动保存：点击切框时后台保存，无需手动点保存按钮
-- 段落视图：右侧展示全文（列 | 分隔）
-- 提交：裁剪图片 + 更新 Obsidian 字库
+### GUI (review_server.py) — Port 5000
+- Box colors: red (?/low conf), yellow (non-square shape), blue (normal), gray (empty), cyan (corrected), green (selected)
+- Auto-save: on char switch, drag-end, Enter
+- Paragraph view: full text (col-separated) in right panel
+- Submit: slice + update Obsidian, then advance to next page
 
-## 常用命令
-- 启动GUI：`python review_server.py` → http://127.0.0.1:5000/?p=24
-- 批量跑图：`python run_all_7.py`
-- 调试标注图：`python debug_184_boxes.py`
-- OCR 对比：`python debug_ocr_comparison.py`
+### Char Viewer (char_viewer.py) — Port 5001
+- Tab bar: 字库浏览 / 集字排版
+- Char browser: Fabric.js 5.3.0, 240×240 canvas, search, 4 modes (original/enhanced/bilateral/binary), invert, mizige/tianzi grid
+- Compose layout: Pillow-based full-res engine, click-to-select variant, export PNG/PDF
+
+## Commands
+- Review GUI: `python review_server.py` → http://127.0.0.1:5000/?p=24
+- Char viewer: `python char_viewer.py` → http://127.0.0.1:5001/
+- Compose: http://127.0.0.1:5001/compose
+- Pipeline single page: `python pipeline.py N --no-correct`
+- Start scripts: `start_gui.bat`, `start_char_viewer.bat`
