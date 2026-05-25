@@ -543,19 +543,18 @@ document.getElementById('previewImg').addEventListener('click', function(e) {
     var pos = getCellPos(cell.segCol, cell.segRow, cellSize, gap, params.cols || 14, params.direction || 'v_rtl', effectiveCols);
     if (clickX >= pos.x && clickX < pos.x + pos.w &&
         clickY >= pos.y && clickY < pos.y + pos.h) {
-      var textIdx = cell.textIdx;
-      var charFound = text[textIdx];
-      for (var j = 0; j < charData.length; j++) {
-        if (charData[j].char === charFound) {
-          var items = document.querySelectorAll('.char-sel-item');
-          if (items[j]) {
-            items[j].scrollIntoView({ block: 'nearest' });
-          }
-          renderCharList(j);
-          document.getElementById('selectedCharName').textContent = '→ ' + charFound;
-          break;
-        }
+      // Map textIdx (with newlines) → dataIdx (no newlines)
+      var ti = cell.textIdx;
+      var dataIdx = 0;
+      for (var k = 0; k < ti; k++) {
+        if (text[k] !== '\n') dataIdx++;
       }
+      var items = document.querySelectorAll('.char-sel-item');
+      if (items[dataIdx]) {
+        items[dataIdx].scrollIntoView({ block: 'nearest' });
+      }
+      renderCharList(dataIdx);
+      document.getElementById('selectedCharName').textContent = '→ ' + text[ti];
       break;
     }
   }
