@@ -186,11 +186,14 @@ def compose_render():
     variants = {int(k): v for k, v in data.get('variants', {}).items()}
     params = data.get('params', {})
     try:
-        img = render_composition(chars, variants, params)
+        img, cell_size, total_cols = render_composition(chars, variants, params)
         buf = io.BytesIO()
         img.save(buf, format='PNG')
         buf.seek(0)
-        return send_file(buf, mimetype='image/png')
+        response = send_file(buf, mimetype='image/png')
+        response.headers['X-Cell-Size'] = str(cell_size)
+        response.headers['X-Total-Cols'] = str(total_cols)
+        return response
     except Exception as e:
         return str(e), 500
 

@@ -14,6 +14,18 @@ body {
   height: 100vh; display: flex; flex-direction: column;
   user-select: none;
 }
+/* Tab bar */
+#tabBar {
+  display: flex; background: #2a2520; border-bottom: 1px solid #4a4032;
+  padding: 0 12px; flex-shrink: 0;
+}
+.tab {
+  padding: 8px 20px; font-size: 13px; color: #908070; cursor: pointer;
+  border-bottom: 2px solid transparent; text-decoration: none;
+}
+.tab:hover { color: #d4c9b0; }
+.tab.active { color: #e8d8c0; border-bottom-color: #c09860; }
+
 #toolbar {
   background: #3a3228; padding: 10px 20px;
   display: flex; align-items: center; gap: 12px;
@@ -88,6 +100,10 @@ select {
 </head>
 <body>
 
+<div id="tabBar">
+  <a href="/" class="tab active">字库浏览</a>
+  <a href="/compose" class="tab">集字排版</a>
+</div>
 <div id="toolbar">
   <label>🔍</label>
   <input id="searchInput" placeholder="输入汉字搜索..." autofocus>

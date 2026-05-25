@@ -5,20 +5,17 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from config import CROPPED_DIR, CALLIGRAPHER, SOURCE_TEXT
 
-# Font paths for punctuation and fallback
 _FONT_PATHS = [
     r'C:\Windows\Fonts\simsun.ttc',
     r'C:\Windows\Fonts\msyh.ttc',
     r'C:\Windows\Fonts\yahei.ttf',
 ]
 _PUNCTUATION = set('，。、；：？！,.;:?!')
-
-# Text color presets (RGBA)
 COLORS = {
     'black': (0, 0, 0, 255),
     'white': (255, 255, 255, 255),
     'ink_blue': (26, 42, 74, 255),
-    'gold': (201, 168, 76, 255),
+    'gold': (218, 185, 72, 255),
     'red': (204, 51, 51, 255),
 }
 
@@ -45,7 +42,9 @@ def _load_char_image(page_dir, filename):
 def _binary_to_rgba(binary_img, text_color):
     h, w = binary_img.shape
     rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    ink = binary_img < 128
+    dark = (binary_img < 128).sum()
+    light = (binary_img >= 128).sum()
+    ink = binary_img < 128 if dark < light else binary_img >= 128
     rgba[ink] = text_color
     rgba[~ink] = (0, 0, 0, 0)
     return Image.fromarray(rgba, 'RGBA')
@@ -64,182 +63,237 @@ def _make_fallback_char(char, size, text_color):
 def _is_punctuation(ch):
     return ch in _PUNCTUATION
 
-def _make_punctuation_overlay(char, size, text_color):
-    font = _load_font(int(size * 0.35))
-    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+def _make_punctuation_overlay(char, cell_size, text_color):
+    overlay_sz = max(12, int(cell_size * 0.45))
+    font = _load_font(int(overlay_sz * 0.70))
+    img = Image.new('RGBA', (overlay_sz, overlay_sz), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     bbox = draw.textbbox((0, 0), char, font=font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    x = size - tw - 2 - bbox[0]
-    y = size - th - 1 - bbox[1]
+    pad = max(2, int(overlay_sz * 0.12))
+    x = overlay_sz - tw - pad - bbox[0]
+    y = overlay_sz - th - pad - bbox[1]
     draw.text((x, y), char, font=font, fill=text_color)
-    return img
+    return img, overlay_sz
 
-def _apply_metallic_overlay(img):
-    arr = np.array(img)
-    h, w = arr.shape[:2]
-    overlay = np.zeros_like(arr)
-    for y in range(h):
-        t = y / h
-        brightness = int(80 + 140 * (1 - abs(t - 0.3) * 1.8))
-        brightness = max(100, min(255, brightness))
-        overlay[y, :, :3] = [brightness, brightness, brightness]
-        overlay[y, :, 3] = 60
-    overlay_img = Image.fromarray(overlay, 'RGBA')
-    return Image.alpha_composite(img, overlay_img)
+def _render_gold_fleck_bg(w, h):
+    base = (252, 249, 240, 255)
+    bg = Image.new('RGBA', (w, h), base)
+    draw = ImageDraw.Draw(bg)
+    rng = np.random.RandomState(42)
+    n = max(8, int(w * h / 6000))
+    for _ in range(n):
+        cx = rng.randint(0, max(1, w))
+        cy = rng.randint(0, max(1, h))
+        pts = []
+        npts = rng.randint(5, 10)
+        radius = rng.randint(5, 18)
+        for j in range(npts):
+            angle = 2 * math.pi * j / npts + rng.uniform(-0.3, 0.3)
+            r = radius * rng.uniform(0.4, 1.0)
+            pts.append((cx + r * math.cos(angle), cy + r * math.sin(angle)))
+        r = min(255, 200 + rng.randint(0, 55))
+        g = min(255, 165 + rng.randint(0, 40))
+        b = min(255, 20 + rng.randint(0, 25))
+        a = rng.randint(100, 220)
+        draw.polygon(pts, fill=(r, g, b, a))
+        if rng.random() > 0.35:
+            sr = min(255, r + 45)
+            sg = min(255, g + 40)
+            sb = min(255, b + 15)
+            scale = 0.5
+            inner = [(cx + scale*(px-cx), cy + scale*(py-cy)) for px,py in pts]
+            draw.polygon(inner, fill=(sr, sg, sb, min(255, a + 20)))
+    return bg
 
-def _get_char_size_and_padding(chars_len, cols, direction, cell_size, gap):
-    if direction.startswith('h'):
-        rows = math.ceil(chars_len / cols)
-        w = cols * (cell_size + gap) + gap
-        h = rows * (cell_size + gap) + gap
-    else:
-        effective_cols = math.ceil(chars_len / cols)
-        w = effective_cols * (cell_size + gap) + gap
-        h = cols * (cell_size + gap) + gap
-    return w, h
-
-def _get_cell_pos(index, cols, direction, cell_size, gap):
-    if direction.startswith('h'):
-        row = index // cols
-        col = index % cols
-        if 'rtl' in direction:
-            col = cols - 1 - col
-        x = gap + col * (cell_size + gap)
-        y = gap + row * (cell_size + gap)
-    else:
-        col = index // cols
-        row = index % cols
-        if 'rtl' in direction:
-            col = len(range)  # calculated differently
-        x = gap + col * (cell_size + gap)
-        y = gap + row * (cell_size + gap)
-    return int(x), int(y)
+def _render_grass_bg(w, h):
+    base = (221, 208, 184, 255)
+    bg = Image.new('RGBA', (w, h), base)
+    draw = ImageDraw.Draw(bg)
+    rng = np.random.RandomState(42)
+    n = max(40, int(w * h / 3000))
+    for _ in range(n):
+        x1 = rng.randint(0, max(1, w))
+        y1 = rng.randint(0, max(1, h))
+        angle = rng.choice([75, 165, 30, 120])
+        length = rng.randint(50, 200)
+        x2 = x1 + int(length * math.cos(math.radians(angle)))
+        y2 = y1 + int(length * math.sin(math.radians(angle)))
+        a = rng.randint(25, 60)
+        r = 120 + rng.randint(-20, 30)
+        g = 80 + rng.randint(-20, 20)
+        b = 40 + rng.randint(-10, 15)
+        draw.line([(x1, y1), (x2, y2)], fill=(r, g, b, a), width=rng.randint(3, 6))
+    return bg
 
 def render_composition(chars, variants, params):
-    """
-    chars: list of str (each character)
-    variants: dict of {index: {'page_dir': str, 'filename': str} or None}
-    params: {
-        'cols': int,                 # chars per row (horizontal) or per column (vertical)
-        'direction': str,            # 'h_ltr' | 'h_rtl' | 'v_ltr' | 'v_rtl'
-        'text_color': str,           # color key
-        'char_size': int,            # px per cell
-        'gap': int,                  # px between cells
-    }
-    Returns: PIL.Image (RGBA)
-    """
     char_size = params.get('char_size', 100)
     gap = params.get('gap', 16)
     direction = params.get('direction', 'h_ltr')
-    cols = params.get('cols', 5)
+    cols_param = params.get('cols', 5)
     text_color_key = params.get('text_color', 'black')
     text_color = COLORS.get(text_color_key, (0, 0, 0, 255))
+    bg_color_key = params.get('bg_color', 'beige')
 
-    # Remove punctuation from layout; they'll be overlaid on previous char
-    layout_chars = []
-    punct_map = {}  # index -> punctuation char to overlay
-    i = 0
-    while i < len(chars):
-        ch = chars[i]
-        if ch == ' ':
-            layout_chars.append(' ')
-            i += 1
+    if not chars:
+        return Image.new('RGBA', (int(gap * 2), int(gap * 2)), (245, 240, 232, 255)), 100, 1
+
+    # --- Phase 1: parse chars into items (accounting for punctuation, spaces, newlines) ---
+    # items: list of dicts with type: 'char'|'space'|'punct'|'nl'
+    items = []
+    for i, ch in enumerate(chars):
+        if ch == '\n':
+            items.append({'type': 'nl', 'orig_idx': i})
+        elif ch == ' ':
+            items.append({'type': 'space', 'orig_idx': i})
         elif _is_punctuation(ch):
-            if layout_chars:
-                punct_map[len(layout_chars) - 1] = ch
-            i += 1
+            items.append({'type': 'punct', 'char': ch, 'orig_idx': i})
         else:
-            layout_chars.append(ch)
-            i += 1
+            items.append({'type': 'char', 'char': ch, 'orig_idx': i})
 
-    total = len(layout_chars)
-    if total == 0:
-        return Image.new('RGBA', (200, 200), (0, 0, 0, 0))
-
-    # Calculate canvas size
-    if direction.startswith('h'):
-        rows = math.ceil(total / cols)
-        canvas_w = cols * (char_size + gap) + gap
-        canvas_h = rows * (char_size + gap) + gap
-    else:
-        effective_cols = math.ceil(total / cols)
-        canvas_w = effective_cols * (char_size + gap) + gap
-        canvas_h = cols * (char_size + gap) + gap
-
-    canvas = Image.new('RGBA', (int(canvas_w), int(canvas_h)), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(canvas)
-
-    # Pre-load all character images
-    loaded = {}
-    for idx, ch in enumerate(layout_chars):
-        if ch == ' ':
-            loaded[idx] = None
+    # --- Phase 2: load binaries at original size (never scaled) ---
+    loaded = {}  # orig_idx -> binary or None
+    max_char_w, max_char_h = 0, 0
+    for item in items:
+        if item['type'] != 'char':
             continue
-        v = variants.get(idx)
+        oi = item['orig_idx']
+        v = variants.get(oi)
+        binary = None
         if v and v.get('page_dir') and v.get('filename'):
             binary = _load_char_image(v['page_dir'], v['filename'])
-            if binary is not None:
-                loaded[idx] = _binary_to_rgba(binary, text_color)
-            else:
-                loaded[idx] = None
+        loaded[oi] = binary
+        if binary is not None:
+            h, w = binary.shape
+            max_char_w = max(max_char_w, w)
+            max_char_h = max(max_char_h, h)
+
+    # Cell = max char dim × 1.15 — always big enough, never overflow
+    if max_char_w > 0 and max_char_h > 0:
+        use_cell_size = int(max(max_char_w, max_char_h) * 1.15)
+    else:
+        use_cell_size = char_size
+
+    # --- Phase 3: compute grid layout (with newline / auto-wrap support) ---
+    is_vert = direction.startswith('v')
+    is_rtl = 'rtl' in direction
+
+    # First pass: simulate layout to determine grid dimensions
+    seg_col = 0
+    seg_row = 0
+    col_heights = [0]  # number of rows per column
+    has_nl = any(it['type'] == 'nl' for it in items)
+
+    for item in items:
+        t = item['type']
+        if t == 'nl':
+            col_heights.append(0)
+            seg_col += 1
+            seg_row = 0
+        elif t == 'punct':
+            continue
         else:
-            loaded[idx] = None
+            if not has_nl and is_vert and seg_row >= cols_param:
+                col_heights.append(0)
+                seg_col += 1
+                seg_row = 0
+            if not has_nl and not is_vert and seg_row >= cols_param:
+                col_heights.append(0)
+                seg_col += 1
+                seg_row = 0
+            col_heights[seg_col] = max(col_heights[seg_col], seg_row + 1)
+            seg_row += 1
 
-    # For metallic text, apply gradient overlay
-    is_metallic = text_color_key == 'metallic'
-    actual_text_color = COLORS.get('gold', (201, 168, 76, 255)) if is_metallic else text_color
+    n_cols = len(col_heights)
+    max_rows = max(col_heights) if col_heights else 1
 
-    # Compose layout
-    for idx, ch in enumerate(layout_chars):
-        if direction.startswith('h'):
-            row = idx // cols
-            col = idx % cols
-            if 'rtl' in direction:
-                col = cols - 1 - col
+    left_margin = gap * 2
+    if is_vert:
+        canvas_w = left_margin + n_cols * (use_cell_size + gap) + gap
+        canvas_h = gap + max_rows * (use_cell_size + gap) + gap
+    else:
+        canvas_w = left_margin + cols_param * (use_cell_size + gap) + gap
+        canvas_h = gap + n_cols * (use_cell_size + gap) + gap
+
+    # Create canvas with proper background
+    if bg_color_key == 'gold_fleck':
+        canvas = _render_gold_fleck_bg(int(canvas_w), int(canvas_h))
+    elif bg_color_key == 'grass':
+        canvas = _render_grass_bg(int(canvas_w), int(canvas_h))
+    else:
+        BG_COLORS = {
+            'white': (255, 255, 255, 255),
+            'black': (0, 0, 0, 255),
+            'beige': (245, 240, 232, 255),
+            'red': (200, 48, 48, 255),
+        }
+        bg_rgba = BG_COLORS.get(bg_color_key, (245, 240, 232, 255))
+        canvas = Image.new('RGBA', (int(canvas_w), int(canvas_h)), bg_rgba)
+
+    # Second pass: compute positions and compose (at full resolution)
+    seg_col = 0
+    seg_row = 0
+
+    for item in items:
+        t = item['type']
+        if t == 'nl':
+            seg_col += 1
+            seg_row = 0
+            continue
+        elif t == 'punct':
+            target_row = seg_row - 1
+            target_col = seg_col
+            if target_row < 0 and target_col > 0:
+                target_col = seg_col - 1
+                target_row = col_heights[target_col] - 1
+            if target_row >= 0:
+                if is_vert:
+                    col_idx = n_cols - 1 - target_col if is_rtl else target_col
+                    cx = int(left_margin + col_idx * (use_cell_size + gap))
+                    cy = int(gap + target_row * (use_cell_size + gap))
+                else:
+                    trow = target_row // cols_param
+                    tcol = target_row % cols_param
+                    if is_rtl:
+                        tcol = cols_param - 1 - tcol
+                    cx = int(left_margin + tcol * (use_cell_size + gap))
+                    cy = int(gap + target_col * (use_cell_size + gap))
+                overlay, o_sz = _make_punctuation_overlay(item['char'], use_cell_size, text_color)
+                ox = int(cx + use_cell_size - o_sz)
+                oy = int(cy + use_cell_size - o_sz)
+                canvas.paste(overlay, (ox, oy), overlay)
+            continue
+
+        # Compute cell position
+        if is_vert:
+            col_idx = n_cols - 1 - seg_col if is_rtl else seg_col
+            cx = int(left_margin + col_idx * (use_cell_size + gap))
+            cy = int(gap + seg_row * (use_cell_size + gap))
         else:
-            col = idx // cols
-            row = idx % cols
-            if 'rtl' in direction:
-                effective_cols = math.ceil(total / cols)
-                col = effective_cols - 1 - col
+            row_idx = seg_row // cols_param
+            col_idx = seg_row % cols_param
+            if is_rtl:
+                col_idx = cols_param - 1 - col_idx
+            row_idx = seg_col
+            cx = int(left_margin + col_idx * (use_cell_size + gap))
+            cy = int(gap + row_idx * (use_cell_size + gap))
 
-        cx = int(gap + col * (char_size + gap))
-        cy = int(gap + row * (char_size + gap))
+        if t == 'space':
+            seg_row += 1
+            continue
 
-        char_img = loaded.get(idx)
-        if char_img is None:
-            if ch == ' ':
-                continue
-            if is_metallic:
-                char_img = _make_fallback_char(ch, char_size, actual_text_color)
-            else:
-                char_img = _make_fallback_char(ch, char_size, text_color)
+        # Render char at original pixel size, centered in full-res cell
+        oi = item['orig_idx']
+        binary = loaded.get(oi)
+        if binary is not None:
+            char_img = _binary_to_rgba(binary, text_color)
         else:
-            if is_metallic:
-                char_img = _binary_to_rgba(
-                    np.array(Image.fromarray(np.array(char_img)[:, :, 3])),
-                    actual_text_color
-                )
+            char_img = _make_fallback_char(item['char'], int(use_cell_size), text_color)
 
-        # Resize to fit cell
-        cw, ch_h = char_img.size
-        scale = min((char_size - 4) / max(cw, ch_h, 1), 1.0)
-        new_w = max(1, int(cw * scale))
-        new_h = max(1, int(ch_h * scale))
-        char_img = char_img.resize((new_w, new_h), Image.LANCZOS)
-
-        if is_metallic:
-            char_img = _apply_metallic_overlay(char_img)
-
-        px = cx + (char_size - new_w) // 2
-        py = cy + (char_size - new_h) // 2
+        px = cx + int((use_cell_size - char_img.width) / 2)
+        py = cy + int((use_cell_size - char_img.height) / 2)
         canvas.paste(char_img, (px, py), char_img)
 
-        # Punctuation overlay
-        if idx in punct_map:
-            punct_char = punct_map[idx]
-            overlay = _make_punctuation_overlay(punct_char, char_size, text_color)
-            canvas.paste(overlay, (cx, cy), overlay)
+        seg_row += 1
 
-    return canvas
+    return canvas, use_cell_size, n_cols
