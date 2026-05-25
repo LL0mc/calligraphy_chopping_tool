@@ -276,6 +276,8 @@ input[type=number] { width: 55px; }
     <option value="red">红色</option>
   </select>
   <button class="btn primary" onclick="doRender()">渲染</button>
+  <button class="btn" onclick="exportPNG()">导出 PNG</button>
+  <button class="btn" onclick="exportPDF()">导出 PDF</button>
   <span style="flex:1"></span>
   <label style="font-size:11px;color:#908070;">缩放</label>
   <input type="range" id="zoomSlider" min="0.1" max="5" step="0.01" value="1.0"
@@ -291,6 +293,7 @@ var currentText = '';
 var previewWidth = 0;
 var previewHeight = 0;
 var ZOOM_BASE = 0.40; // 100% slider = 40% of natural size (chars ~40px)
+var lastRenderBlob = null; // stores latest rendered PNG blob for export
 
 // ---- Zoom state ----
 var zoomLevel = 1.0;
@@ -456,6 +459,7 @@ function doRender() {
   })
   .then(function(result) {
     var blob = result.blob;
+    lastRenderBlob = blob;
     var url = URL.createObjectURL(blob);
     var img = document.getElementById('previewImg');
     img.src = url;
@@ -494,6 +498,82 @@ function getRenderParams() {
     text_color: document.getElementById('colorSelect').value,
     bg_color: document.getElementById('bgSelect').value,
   };
+}
+
+// ---- Export ----
+function buildExportPayload() {
+  var text = currentText;
+  if (!text || !text.trim()) return null;
+  var chars = [];
+  var variants = {};
+  var dataIdx = 0;
+  for (var ti = 0; ti < text.length; ti++) {
+    var tc = text[ti];
+    chars.push(tc);
+    if (tc === '\n') continue;
+    if (dataIdx < charData.length && charData[dataIdx].char === tc) {
+      var cd = charData[dataIdx];
+      if (cd.selectedIdx >= 0 && cd.selectedIdx < cd.variants.length) {
+        var v = cd.variants[cd.selectedIdx];
+        variants[ti] = { page_dir: v.page_dir, filename: v.filename };
+      }
+      dataIdx++;
+    } else {
+      for (var j = 0; j < charData.length; j++) {
+        if (charData[j].char === tc) {
+          var cd2 = charData[j];
+          if (cd2.selectedIdx >= 0 && cd2.selectedIdx < cd2.variants.length) {
+            var v2 = cd2.variants[cd2.selectedIdx];
+            variants[ti] = { page_dir: v2.page_dir, filename: v2.filename };
+          }
+          break;
+        }
+      }
+    }
+  }
+  return { chars: chars, variants: variants, params: getRenderParams() };
+}
+
+function exportPNG() {
+  if (!lastRenderBlob) { alert('请先渲染'); return; }
+  var url = URL.createObjectURL(lastRenderBlob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'composition.png';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
+function exportPDF() {
+  var payload = buildExportPayload();
+  if (!payload) { alert('请先输入文字'); return; }
+  document.getElementById('loading').style.display = 'flex';
+  fetch('/api/compose/export_pdf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  .then(function(r) {
+    if (!r.ok) throw new Error('PDF export failed');
+    return r.blob();
+  })
+  .then(function(blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'composition.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    document.getElementById('loading').style.display = 'none';
+  })
+  .catch(function(err) {
+    document.getElementById('loading').style.display = 'none';
+    alert('导出失败: ' + err.message);
+  });
 }
 
 // ---- Zoom ----

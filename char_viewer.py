@@ -4,6 +4,7 @@ import numpy as np
 from flask import Flask, render_template, jsonify, request, send_file
 from config import CROPPED_DIR
 from src.compose_renderer import render_composition
+from fpdf import FPDF
 
 app = Flask(__name__)
 
@@ -194,6 +195,31 @@ def compose_render():
         response.headers['X-Cell-Size'] = str(cell_size)
         response.headers['X-Total-Cols'] = str(total_cols)
         return response
+    except Exception as e:
+        return str(e), 500
+
+@app.route('/api/compose/export_pdf', methods=['POST'])
+def compose_export_pdf():
+    data = request.get_json(force=True)
+    if not data:
+        return 'Bad request', 400
+    chars = data.get('chars', [])
+    variants = {int(k): v for k, v in data.get('variants', {}).items()}
+    params = data.get('params', {})
+    try:
+        img, cell_size, total_cols = render_composition(chars, variants, params)
+        pdf = FPDF(unit='pt', format=(img.width, img.height))
+        pdf.add_page()
+        img_buf = io.BytesIO()
+        img.save(img_buf, format='PNG')
+        img_buf.seek(0)
+        pdf.image(img_buf, x=0, y=0, w=img.width, h=img.height)
+        pdf_buf = io.BytesIO()
+        pdf.output(pdf_buf)
+        pdf_buf.seek(0)
+        return send_file(pdf_buf, mimetype='application/pdf',
+                         as_attachment=True,
+                         download_name='composition.pdf')
     except Exception as e:
         return str(e), 500
 
