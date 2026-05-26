@@ -17,7 +17,6 @@ from src.char_segmenter import (
 )
 from src.ocr_recognizer import recognize_characters
 from src.confidence_handler import export_results
-from src.corrector import load_poems, correct_page_ocr
 
 
 def process_page(page_num, poems_data, ocr_engine="rapidocr",
@@ -73,14 +72,12 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="字帖全流程处理")
     parser.add_argument("pages", nargs="+", type=int, help="页码（1-based）")
-    parser.add_argument("--no-correct", action="store_true", help="跳过自动校对")
+    parser.add_argument("--no-correct", action="store_true", help="（已弃用）")
     args = parser.parse_args()
-
-    poems_data = load_poems() if not args.no_correct else None
 
     for page_num in args.pages:
         try:
-            process_page(page_num, poems_data)
+            process_page(page_num)
         except Exception as e:
             import traceback
             print(f"  [错误] 第{page_num}页: {e}")
