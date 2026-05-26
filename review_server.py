@@ -147,6 +147,7 @@ tr.sel{background:#3a3028}
 .st1{background:#2d4a3e;color:#88cc88}
 .st2{background:#3d3d22;color:#cccc66}
 .st3{background:#333;color:#888}
+.st4{background:#4a3520;color:#ff9944}
 </style>
 </head>
 <body>
@@ -643,8 +644,8 @@ function hideLoading() {
 function checkStatus(p, cb) {
   fetch('/status?p=' + p).then(function(r){return r.json();}).then(function(d){
     var label = document.getElementById('statusLabel');
-    var m = {unprocessed:'未检测', ready:'未提交', submitted:'已提交', skipped:'已跳过'};
-    var cls = {unprocessed:'st0', ready:'st1', submitted:'st2', skipped:'st3'};
+    var m = {unprocessed:'未检测', ready:'未提交', submitted:'已提交', pending:'待提交', skipped:'已跳过'};
+    var cls = {unprocessed:'st0', ready:'st1', submitted:'st2', pending:'st4', skipped:'st3'};
     label.textContent = m[d.status] || d.status;
     label.className = 'st ' + (cls[d.status] || 'st0');
     if (cb) cb(d);
@@ -1048,15 +1049,25 @@ def submit_page():
         return jsonify({'ok': False, 'm': f'提交失败: {e}'})
 
 def get_page_status(page):
-    """Check page status: unprocessed / ready / submitted / skipped"""
+    """Check page status: unprocessed / ready / submitted / pending / skipped"""
     skipped = os.path.exists(os.path.join(PAGES_DIR, f"page_{page:03d}_skipped.json"))
     if skipped:
         return "skipped"
     ocr = os.path.exists(os.path.join(PAGES_DIR, f"page_{page:03d}_ocr_results.json"))
     if not ocr:
         return "unprocessed"
-    reviewed = os.path.exists(os.path.join(PAGES_DIR, f"page_{page:03d}_reviewed.json"))
-    return "submitted" if reviewed else "ready"
+    reviewed_path = os.path.join(PAGES_DIR, f"page_{page:03d}_reviewed.json")
+    reviewed = os.path.exists(reviewed_path)
+    if not reviewed:
+        return "ready"
+    # Check if corrected.json was modified after reviewed.json → pending
+    corrected_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
+    if os.path.exists(corrected_path):
+        corr_mtime = os.path.getmtime(corrected_path)
+        rev_mtime = os.path.getmtime(reviewed_path)
+        if corr_mtime > rev_mtime + 1:  # 1s tolerance for filesystem precision
+            return "pending"
+    return "submitted"
 
 @app.route('/status')
 def page_status():
@@ -1076,7 +1087,7 @@ def run_page():
         page = req['p']
         status = get_page_status(page)
         if status == "submitted":
-            return jsonify({'ok': False, 'm': f'第{page}页已提交，不可重新检测'})
+            return jsonify({'ok': False, 'm': f'第{page}页已提交且无修改，不可重新检测'})
 
         # Remove skipped marker if present
         skipped_path = os.path.join(PAGES_DIR, f"page_{page:03d}_skipped.json")
@@ -1121,8 +1132,6 @@ def skip_page():
         return jsonify({'ok': False, 'm': f'跳过失败: {e}'})
 
 if __name__ == '__main__':
-    import webbrowser
     url = 'http://127.0.0.1:5000/?p=24'
     print(url)
-    webbrowser.open(url)
     app.run(host='127.0.0.1', port=5000, debug=False)

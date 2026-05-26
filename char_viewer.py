@@ -93,9 +93,8 @@ def refresh():
 
 @app.route('/api/search')
 def search():
+    build_index()
     q = request.args.get('q', '').strip()
-    if _index is None:
-        build_index()
     if not q:
         return jsonify([{'char': c, 'count': len(v)} for c, v in sorted(_index.items())])
     results = []
@@ -106,8 +105,7 @@ def search():
 
 @app.route('/api/char/<char>')
 def get_char(char):
-    if _index is None:
-        build_index()
+    build_index()
     variants = _index.get(char, [])
     return jsonify({'char': char, 'count': len(variants), 'variants': variants})
 
@@ -170,8 +168,7 @@ def compose_search():
     text = request.args.get('text', '').strip()
     if not text:
         return jsonify({'chars': []})
-    if _index is None:
-        build_index()
+    build_index()
     chars = []
     for ch in text:
         var_list = _index.get(ch, [])
