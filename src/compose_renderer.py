@@ -50,7 +50,7 @@ def _binary_to_rgba(binary_img, text_color):
     return Image.fromarray(rgba, 'RGBA')
 
 def _make_fallback_char(char, size, text_color):
-    font = _load_font(int(size * 0.85))
+    font = _load_font(int(size * 0.60))
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     bbox = draw.textbbox((0, 0), char, font=font)
