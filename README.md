@@ -1,6 +1,10 @@
-# 字帖校对系统 — 红楼梦 吴玉生硬笔行书
+# 书法练习助手 — 字帖 OCR + 字库管理 + 集字排版
 
-将竖排书法字帖逐字切割、OCR 识别、人工校对、浏览检索、集字排版，最终建立可检索的 Obsidian 字库。
+将竖排书法字帖逐字切割、OCR 识别、人工校对、浏览检索、集字排版，建立可检索的 Obsidian 字库。覆盖从字帖到可复用的单字资源库全流程。
+
+> **详细文档：**
+> - [Pipeline 检测模块详解](docs/pipeline_detail.md) — PDF 渲染、字符切割（OCR + 连通域精炼）、OCR 识别、置信度分类的逐步骤技术说明
+> - [Web 应用模块详解](docs/gui_detail.md) — 校对服务器、字符查看器、集字排版引擎、Obsidian 导出的实现逻辑与数据流
 
 <div align="center">
   <img src="docs/images/architecture.png" alt="系统架构" width="85%">
@@ -73,33 +77,13 @@ Pillow 全分辨率排版引擎，将裁剪的单字拼合成书法作品：
 - **缩放**：滑块 0.1–5.0 倍，居中缩放
 - **导出**：PNG（客户端下载）、PDF（服务端 fpdf2 全分辨率嵌入）
 
-## 流程
+## 模块详解
 
-### Step 1: 检测 Pipeline
+详细的步骤说明和技术决策见以下文档：
 
-关键步骤：
+- **[Pipeline 检测模块详解](docs/pipeline_detail.md)** — 逐步骤解释 PDF 渲染、二轮内容裁剪、OCR 字级检测、分列与子列拆分、遗漏字符检测（间隙 + 列尾）、连通域精炼、OCR 识别复用策略、去重后处理。
 
-1. **渲染**：PDF → 灰度图（2496×3720 A4 等比例）
-2. **内容裁剪**：滑动窗口检测暗像素密度，排除边缘空白
-3. **OCR 单字检测**：RapidOCR `return_word_box=True` 获取字级边界框
-4. **标点过滤**：排除标点符号和空白框，记录区域供精炼阶段排除
-5. **分列**：按 X 中心坐标聚类，拆分子列，合并行内小字到主列
-6. **遗漏字符检测**：间隙 + 列尾检测 OCR 漏检的飞白/淡墨
-7. **连通域精炼**：以 OCR 框为中心，连通域分析精确裁剪字符边界
-8. **OCR 识别**：优先使用原始 OCR 原文，仅原文为空时重新识别
-9. **去重**：IoU > 0.3 的保留较大框
-10. **后处理**：按列检测异常大框（中位面积 3×以上），缩小至合理尺寸
-
-### Step 2: GUI 人工校对 + 提交 → 切片存储 + Obsidian 字库
-
-点击「提交」后自动完成：
-
-- **切片存储**：`output/cropped/{书家}/{字帖}/page_{页码}/{序号}_{字}.png`
-  - 阅读顺序编号（右→左，上→下），每字外扩 4px 边距
-- **Obsidian 字库**：`字库/{书家}/{字帖}/{字}.md`
-  - frontmatter：char, calligrapher, source
-  - 正文：表格嵌入该字所有出现的图片 + 置信度 + 上下文
-  - 同字累加，不同页面、同页多次出现均合并到同一文件
+- **[Web 应用模块详解](docs/gui_detail.md)** — 校对服务器（数据模型、保存/提交流程、页面状态跟踪）、字符查看器（索引构建、搜索、图像处理模式）、集字排版引擎（自动格子、背景纹理、标点覆盖、导出 PNG/PDF）、Obsidian 字库格式。
 
 ## 项目结构
 
@@ -126,33 +110,99 @@ Pillow 全分辨率排版引擎，将裁剪的单字拼合成书法作品：
 ├── data/
 │   └── poems.json            # 红楼梦诗词 → 页面映射
 ├── docs/
-│   └── images/               # 文档配图
+│   ├── images/                # 文档配图
+│   ├── pipeline_detail.md     # Pipeline 模块详细说明
+│   └── gui_detail.md          # Web 应用模块详细说明
 └── output/                   # 输出目录（git ignored）
     ├── pages/                # 页面渲染 + OCR 结果 JSON
     ├── characters/           # Pipeline 切割字符图
     └── cropped/              # GUI 提交裁剪字符图
 ```
 
-## 启动
+## 快速上手指南
+
+以下是从零开始使用本项目的完整流程。
+
+### 1. 环境准备
 
 ```bash
-# 校对 GUI
+# 克隆仓库
+git clone <项目地址>
+cd handwriting
+
+# 安装依赖
+pip install opencv-python pillow pypdfium2 rapidocr flask fpdf2
+```
+
+**Python 版本：** 3.8+。建议使用虚拟环境（venv / conda）。
+
+### 2. 配置
+
+编辑 `config.py`：
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `PDF_PATH` | 书法字帖 PDF 文件路径 | 项目根目录下的 PDF |
+| `CALLIGRAPHER` | 书家名（用于目录命名） | `"吴玉生"` |
+| `SOURCE_TEXT` | 字帖名（用于目录命名） | `"红楼梦"` |
+| `OBSIDIAN_VAULT` | Obsidian 仓库根目录 | `D:\notebooks\Lmc\brew` |
+| `DPI_SCALE` | PDF 渲染倍率 | `2`（约 200 DPI） |
+
+若不需要 Obsidian 导出，将 `OBSIDIAN_VAULT` 设为临时目录即可。不同字帖切换时只需修改 `CALLIGRAPHER` 和 `SOURCE_TEXT`，数据自动隔离。
+
+### 3. 运行 Pipeline（字符检测）
+
+```bash
+# 检测第 24 页
+python pipeline.py 24 --no-correct
+
+# 检测多页
+python pipeline.py 24 27 30 --no-correct
+```
+
+Pipeline 自动跳过已有结果的页面。检测结果保存到 `output/pages/page_{num}_ocr_results.json`。
+
+### 4. 启动校对 GUI
+
+```bash
 python review_server.py
 # → http://127.0.0.1:5000/?p=24
+```
 
-# 字符查看器 + 集字排版
+- 页面上所有检测框以颜色编码显示状态（红=低置信度、蓝=正常、青=已修正）。
+- **拖拽控制点**调整框位置/大小。
+- **修改文字**：选中框 → 输入框中修改 → Enter 保存。
+- **新增/删除**：工具栏按钮。
+- **提交**：点击"提交" → 裁剪字符 → 保存到 `output/cropped/` → 更新 Obsidian 字库 → 自动下一页。
+
+双击 `start_review.bat` 自动打开浏览器。
+
+### 5. 浏览字库
+
+```bash
 python char_viewer.py
 # → http://127.0.0.1:5001/
 ```
 
-或双击 `start_review.bat` / `start_char_viewer.bat`。
+左侧搜索按字检索，四种图像模式（原图/增强/双边滤波/二值）、米字格/田字格、反色、墨心居中。下方缩略图切换同字变体。
 
-## Pipeline CLI
+### 6. 集字排版
 
-```bash
-# 单页运行（不自动校对）
-python pipeline.py 24 --no-correct
-```
+在字符查看器中切换到"集字排版"标签 → 输入文字 → 侧边栏为每字选择变体 → 设置参数 → 渲染 → 导出 PNG 或 PDF。
+
+### 7. 常见操作场景
+
+| 场景 | 操作 |
+|------|------|
+| 检测新页面 | `python pipeline.py N --no-correct` |
+| 校对检测结果 | 启动 review_server，打开该页 |
+| 修正单个框 | 点击选中 → 拖拽调整或改文字 |
+| 删除误检框 | 选中 → 点"删除" |
+| 添加遗漏字 | 点"添加" → 拖拽到正确位置 → 填入文字 |
+| 提交已完成页 | 点"提交" → 自动切片 + 更新字库 |
+| 浏览已提交字符 | 启动 char_viewer → 搜索 |
+| 拼合书法作品 | 切换到"集字排版"标签 |
+| 跳过无内容页 | 点"跳过"按钮 |
 
 ## 架构决策
 
