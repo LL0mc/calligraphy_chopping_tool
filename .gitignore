@@ -9,6 +9,9 @@ output/
 # Archive
 archive/
 
+# Source PDF
+*.pdf
+
 # IDE
 .vscode/
 .idea/
