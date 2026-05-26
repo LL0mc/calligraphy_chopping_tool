@@ -182,7 +182,6 @@ def render_composition(chars, variants, params):
     seg_col = 0
     seg_row = 0
     col_heights = [0]  # number of rows per column
-    has_nl = any(it['type'] == 'nl' for it in items)
 
     for item in items:
         t = item['type']
@@ -193,11 +192,7 @@ def render_composition(chars, variants, params):
         elif t == 'punct':
             continue
         else:
-            if not has_nl and is_vert and seg_row >= cols_param:
-                col_heights.append(0)
-                seg_col += 1
-                seg_row = 0
-            if not has_nl and not is_vert and seg_row >= cols_param:
+            if seg_row >= cols_param:
                 col_heights.append(0)
                 seg_col += 1
                 seg_row = 0
@@ -264,8 +259,8 @@ def render_composition(chars, variants, params):
                 canvas.paste(overlay, (ox, oy), overlay)
             continue
 
-        # Auto-wrap (mirrors first pass) — before computing position
-        if not has_nl and t != 'punct' and t != 'nl' and seg_row >= cols_param:
+        # Auto-wrap — before computing position
+        if t != 'punct' and t != 'nl' and seg_row >= cols_param:
             seg_col += 1
             seg_row = 0
 
