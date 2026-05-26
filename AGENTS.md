@@ -118,4 +118,4 @@ One note per char. Frontmatter: char/calligrapher/source for Dataview. Table of 
 - Char viewer: `python char_viewer.py` → http://127.0.0.1:5001/
 - Compose: http://127.0.0.1:5001/compose
 - Pipeline single page: `python pipeline.py N --no-correct`
-- Start scripts: `start_gui.bat`, `start_char_viewer.bat`
+- Start scripts: `start_review.bat`, `start_char_viewer.bat`

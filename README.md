@@ -93,7 +93,7 @@ Pillow 全分辨率排版引擎，将裁剪的单字拼合成书法作品：
 ├── review_server.py         # Flask GUI 校对 (port 5000)
 ├── char_viewer.py           # Flask 字符查看器 + 集字排版 (port 5001)
 ├── config.py                # 全局配置
-├── start_gui.bat            # review_server 启动脚本
+├── start_review.bat         # review_server 启动脚本
 ├── start_char_viewer.bat    # char_viewer 启动脚本
 ├── AGENTS.md                # 开发日志与决策记录
 ├── src/
@@ -130,7 +130,7 @@ python char_viewer.py
 # → http://127.0.0.1:5001/
 ```
 
-或双击 `start_gui.bat` / `start_char_viewer.bat`。
+或双击 `start_review.bat` / `start_char_viewer.bat`。
 
 ## Pipeline CLI
 
