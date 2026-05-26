@@ -625,6 +625,7 @@ function mu(e) {
             b.x = d.xs*SCALE; b.y = d.ys*SCALE; b.w = d.ws*SCALE; b.h = d.hs*SCALE;
             rt(); cropImg(); dc();
           }
+          checkStatus(PAGE);
         });
     }
   }
