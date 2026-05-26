@@ -304,8 +304,14 @@ var PUNCTUATION = new Set('，。、；：？！,.;:?!');
 
 // ---- Layout cell computation (matches server's segment-based layout) ----
 function computeLayoutCells(text) {
+  var params = getRenderParams();
+  var cols = params.cols || 14;
   var cells = [];
   var segCol = 0, segRow = 0;
+  var hasNewline = false;
+  for (var ti = 0; ti < text.length; ti++) {
+    if (text[ti] === '\n') { hasNewline = true; break; }
+  }
   for (var ti = 0; ti < text.length; ti++) {
     var ch = text[ti];
     if (ch === '\n') {
@@ -316,12 +322,11 @@ function computeLayoutCells(text) {
       segRow++;
     } else if (PUNCTUATION.has(ch)) {
       // Overlaid on previous cell in same column
-      if (segRow > 0) {
-        // Associate with the previous cell
-      } else if (segCol > 0) {
-        // Punctuation at column start — associate with last cell of prev column
-      }
     } else {
+      if (!hasNewline && segRow >= cols) {
+        segCol++;
+        segRow = 0;
+      }
       cells.push({ segCol: segCol, segRow: segRow, textIdx: ti, char: ch });
       segRow++;
     }
@@ -413,6 +418,7 @@ function selectVariant(charIdx, varIdx) {
 function doRender() {
   var text = currentText;
   if (!text || !text.trim()) return;
+  layoutCells = computeLayoutCells(text);
 
   // Build chars array from text, matching to charData
   var chars = [];
