@@ -264,14 +264,18 @@ def render_composition(chars, variants, params):
                 canvas.paste(overlay, (ox, oy), overlay)
             continue
 
+        # Auto-wrap (mirrors first pass) — before computing position
+        if not has_nl and t != 'punct' and t != 'nl' and seg_row >= cols_param:
+            seg_col += 1
+            seg_row = 0
+
         # Compute cell position
         if is_vert:
             col_idx = n_cols - 1 - seg_col if is_rtl else seg_col
             cx = int(left_margin + col_idx * (use_cell_size + gap))
             cy = int(gap + seg_row * (use_cell_size + gap))
         else:
-            row_idx = seg_row // cols_param
-            col_idx = seg_row % cols_param
+            col_idx = seg_row
             if is_rtl:
                 col_idx = cols_param - 1 - col_idx
             row_idx = seg_col
