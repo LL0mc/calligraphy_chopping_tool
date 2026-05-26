@@ -342,6 +342,7 @@ function saveBg(os) {
         bi.x = d.xs*SCALE; bi.y = d.ys*SCALE; bi.w = d.ws*SCALE; bi.h = d.hs*SCALE;
         rt();
       }
+      checkStatus(PAGE);
     }).catch(function(e){});
 }
 
@@ -367,6 +368,7 @@ function saveWait(cb) {
         bi.x = d.xs*SCALE; bi.y = d.ys*SCALE; bi.w = d.ws*SCALE; bi.h = d.hs*SCALE;
         rt(); cropImg();
       }
+      checkStatus(PAGE);
       if (cb) cb();
     }).catch(function(e){ document.getElementById('msg').textContent = '请求失败: '+e; });
 }
@@ -408,6 +410,7 @@ function delChar() {
       } else {
         document.getElementById('msg').textContent = d.m;
       }
+      checkStatus(PAGE);
     }).catch(function(e){ document.getElementById('msg').textContent = '请求失败: '+e; });
 }
 
@@ -439,6 +442,7 @@ function addChar() {
       } else {
         document.getElementById('msg').textContent = d.m;
       }
+      checkStatus(PAGE);
     }).catch(function(e){ document.getElementById('msg').textContent = '请求失败: '+e; });
 }
 
