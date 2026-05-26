@@ -19,7 +19,7 @@ from src.ocr_recognizer import recognize_characters
 from src.confidence_handler import export_results
 
 
-def process_page(page_num, poems_data, ocr_engine="rapidocr",
+def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
                  expand_strategy="square", expand_padding=15,
                  remove_lines=False):
     """处理单页：渲染 → 切割 → OCR → 校对"""
