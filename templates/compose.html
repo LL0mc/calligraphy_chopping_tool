@@ -660,8 +660,17 @@ document.getElementById('textInput').addEventListener('keydown', function(e) {
   }
 });
 
-// Auto-render on param change
-['colsInput','dirSelect','charSizeInput','gapInput','bgSelect','colorSelect'].forEach(function(id) {
+// Auto-render on param change — use input for number fields (spinner arrows, typing)
+['colsInput', 'charSizeInput', 'gapInput'].forEach(function(id) {
+  var el = document.getElementById(id);
+  var timer = null;
+  el.addEventListener('input', function() {
+    if (charData.length === 0) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(function() { timer = null; doRender(); }, 200);
+  });
+});
+['dirSelect', 'bgSelect', 'colorSelect'].forEach(function(id) {
   document.getElementById(id).addEventListener('change', function() { if (charData.length > 0) doRender(); });
 });
 
