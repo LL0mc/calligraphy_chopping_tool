@@ -7,7 +7,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cv2
-from config import PDF_PATH, PAGES_DIR, CHARACTERS_DIR, DPI_SCALE
+from config import PDF_PATH, PAGES_DIR, CHARACTERS_DIR, DPI_SCALE, LAYOUT_DIRECTION
 from src.pdf_renderer import render_pdf_page
 from src.page_preprocessor import preprocess_page
 from src.char_segmenter import (
@@ -21,10 +21,13 @@ from src.confidence_handler import export_results
 
 def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
                  expand_strategy="square", expand_padding=15,
-                 remove_lines=False):
+                 remove_lines=False, layout_direction=None):
     """处理单页：渲染 → 切割 → OCR → 校对"""
     page_idx = page_num - 1
     print(f"\n=== 第{page_num}页 ===")
+
+    if layout_direction is None:
+        layout_direction = LAYOUT_DIRECTION
 
     # Step 1: Render
     page_image_path = render_pdf_page(PDF_PATH, page_idx, PAGES_DIR, DPI_SCALE)
@@ -42,6 +45,7 @@ def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
         "size_threshold": 120,
         "binary_threshold": 140,
         "bbox_padding": 5,
+        "layout_direction": layout_direction,
     }
     characters = segment_characters(original_gray, config)
     if not characters:

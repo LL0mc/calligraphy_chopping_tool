@@ -80,10 +80,15 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
                      search_margin_x: int = 40, search_margin_y: int = 100,
                      merge_radius: int = 100,
                      exclude_boxes: list = None,
-                     claimed_regions: list = None) -> tuple:
+                     claimed_regions: list = None,
+                     layout_direction: str = "vertical") -> tuple:
     """以OCR框为中心，用连通域精确裁剪字符，排除标点区域和已被前面字符声明的区域"""
     h, w = gray.shape
-    
+
+    # 横排：在 X 方向搜索范围更大
+    if layout_direction == "horizontal":
+        search_margin_x, search_margin_y = search_margin_y, search_margin_x
+
     search_x1 = max(0, x_min - search_margin_x)
     search_x2 = min(w, x_max + search_margin_x)
     search_y1 = max(0, y_min - search_margin_y)
@@ -195,11 +200,43 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
     return (new_x_min, new_y_min, new_w, new_h)
 
 
-def classify_columns(all_chars: list) -> list:
-    """按x中心坐标分列"""
+def classify_columns(all_chars: list, layout_direction: str = "vertical") -> list:
+    """按聚类分组字符（竖排按 X 中心分列，横排按 Y 中心分行）"""
     if not all_chars:
         return []
 
+    if layout_direction == "horizontal":
+        # 横排：按 Y 中心聚类（行）
+        chars_with_center = [(c, (c[2] + c[3]) / 2) for c in all_chars]
+        chars_with_center.sort(key=lambda x: x[1])
+
+        rows = []
+        current_row_chars = [chars_with_center[0][0]]
+        current_row_center_sum = chars_with_center[0][1]
+        current_row_count = 1
+
+        for char, center in chars_with_center[1:]:
+            avg_center = current_row_center_sum / current_row_count
+            if abs(center - avg_center) > 100:
+                y_min = min(c[2] for c in current_row_chars)
+                y_max = max(c[3] for c in current_row_chars)
+                rows.append((len(rows), y_min, y_max, current_row_chars))
+                current_row_chars = [char]
+                current_row_center_sum = center
+                current_row_count = 1
+            else:
+                current_row_chars.append(char)
+                current_row_center_sum += center
+                current_row_count += 1
+
+        if current_row_chars:
+            y_min = min(c[2] for c in current_row_chars)
+            y_max = max(c[3] for c in current_row_chars)
+            rows.append((len(rows), y_min, y_max, current_row_chars))
+
+        return rows
+
+    # 竖排：原有按 X 中心分列逻辑
     chars_with_center = [(c, (c[0] + c[1]) / 2) for c in all_chars]
     chars_with_center.sort(key=lambda x: x[1])
 
@@ -230,10 +267,48 @@ def classify_columns(all_chars: list) -> list:
     return columns
 
 
-def split_mixed_columns(columns: list, size_threshold: int = 120) -> list:
-    """拆分混合列（大字和小字），行内注释（小字与大字x范围重叠）合并回主列"""
+def split_mixed_columns(columns: list, size_threshold: int = 120,
+                         layout_direction: str = "vertical") -> list:
+    """拆分混合列/行（大字和小字），行内注释合并回主列/行"""
     result = []
     for col_idx, x_min, x_max, chars in columns:
+        if layout_direction == "horizontal":
+            # 横排：y_min, y_max 存于 x_min, x_max 位置
+            y_min, y_max = x_min, x_max
+            large_chars = []
+            small_chars = []
+            for c in chars:
+                width = c[1] - c[0]
+                height = c[3] - c[2]
+                if width >= size_threshold and height >= size_threshold:
+                    large_chars.append(c)
+                else:
+                    small_chars.append(c)
+
+            if small_chars and large_chars:
+                ly_min = min(c[2] for c in large_chars)
+                ly_max = max(c[3] for c in large_chars)
+                sy_min = min(c[2] for c in small_chars)
+                sy_max = max(c[3] for c in small_chars)
+                overlap = min(ly_max, sy_max) - max(ly_min, sy_min)
+                if overlap > 0 and overlap >= (sy_max - sy_min) * 0.5:
+                    large_chars.extend(small_chars)
+                    large_chars.sort(key=lambda c: c[0])
+                    small_chars = []
+
+            if large_chars:
+                ly_min = min(c[2] for c in large_chars)
+                ly_max = max(c[3] for c in large_chars)
+                result.append((len(result), ly_min, ly_max, large_chars))
+
+            if small_chars:
+                sy_min = min(c[2] for c in small_chars)
+                sy_max = max(c[3] for c in small_chars)
+                result.append((len(result), sy_min, sy_max, small_chars))
+
+            continue
+
+        # 竖排：原有大字/小字按 X 范围重叠逻辑
         large_chars = []
         small_chars = []
         for c in chars:
@@ -272,18 +347,23 @@ def filter_calligraphy_columns(columns: list, min_chars: int = 2,
                                  min_col_width: int = 130,
                                  min_char_width: int = None, min_char_height: int = None,
                                  min_annotation_width: int = None, min_annotation_height: int = None,
+                                 layout_direction: str = "vertical",
                                  **kwargs) -> list:
-    """用列宽过滤书法列（列宽140-240px）vs 注释列（列宽60-110px）
-    
-    min_col_width=130 即可干净区分两者。
-    """
+    """用列宽/行高过滤书法内容"""
     result = []
     for col_idx, x_min, x_max, chars in columns:
-        col_width = x_max - x_min
-        if col_width >= min_col_width and len(chars) >= min_chars:
-            result.append((col_idx, x_min, x_max, chars))
+        if layout_direction == "horizontal":
+            # 横排：x_min/x_max 实际存的是 y_min/y_max（行范围）
+            row_height = x_max - x_min
+            # 横排行高过滤
+            if row_height >= min_col_width and len(chars) >= min_chars:
+                result.append((col_idx, x_min, x_max, chars))
+        else:
+            col_width = x_max - x_min
+            if col_width >= min_col_width and len(chars) >= min_chars:
+                result.append((col_idx, x_min, x_max, chars))
 
-    # Sort result by x_min
+    # Sort result by the primary axis
     result.sort(key=lambda c: c[1])
     # Re-index
     result = [(i, c[1], c[2], c[3]) for i, c in enumerate(result)]
@@ -292,12 +372,157 @@ def filter_calligraphy_columns(columns: list, min_chars: int = 2,
 
 
 def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: int, x_max: int,
-                                   gap_threshold: int = 80, binary_threshold: int = 140,
-                                   min_area: int = 300) -> list:
-    """在字符间隙中检测遗漏的字符（包括列末尾）"""
+                                    gap_threshold: int = 80, binary_threshold: int = 140,
+                                    min_area: int = 300,
+                                    layout_direction: str = "vertical") -> list:
+    """在字符间隙中检测遗漏的字符（包括列/行末尾）"""
     missing = []
     h, w = gray.shape
-    
+
+    if layout_direction == "horizontal":
+        # 横排：按 X 方向间隙检测
+        bound_min = x_min  # 行 Y 上限
+        bound_max = x_max  # 行 Y 下限
+        for i in range(len(sorted_chars) - 1):
+            curr = sorted_chars[i]
+            next_char = sorted_chars[i + 1]
+
+            gap_start = curr[1]  # x_max of current
+            gap_end = next_char[0]  # x_min of next
+            gap_size = gap_end - gap_start
+
+            if gap_size < gap_threshold:
+                continue
+
+            # Extract gap region (row band)
+            search_y1 = max(0, bound_min - 20)
+            search_y2 = min(h, bound_max + 20)
+            roi = gray[search_y1:search_y2, gap_start:gap_end]
+
+            # Check dark pixel ratio
+            dark_mask = roi < binary_threshold
+            dark_ratio = np.sum(dark_mask) / dark_mask.size
+
+            if dark_ratio < 0.15:
+                continue
+
+            # Connected component analysis
+            _, binary = cv2.threshold(roi, binary_threshold, 255, cv2.THRESH_BINARY)
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
+
+            candidates = []
+            for j in range(1, num_labels):
+                area = stats[j, cv2.CC_STAT_AREA]
+                if area < min_area:
+                    continue
+
+                x = stats[j, cv2.CC_STAT_LEFT] + gap_start
+                y = stats[j, cv2.CC_STAT_TOP] + search_y1
+                bw = stats[j, cv2.CC_STAT_WIDTH]
+                bh = stats[j, cv2.CC_STAT_HEIGHT]
+
+                # Within row Y range
+                if y + bh < bound_min - 10 or y > bound_max + 10:
+                    continue
+
+                # Aspect ratio
+                aspect_ratio = bw / bh if bh > 0 else 0
+                if aspect_ratio < 0.2 or aspect_ratio > 5.0:
+                    continue
+                if bw < 50 or bh < 50:
+                    continue
+
+                candidates.append((x, x + bw, y, y + bh, area, bw, bh))
+
+            # Merge nearby candidates
+            if not candidates:
+                continue
+
+            merged = []
+            used = [False] * len(candidates)
+            for ci in range(len(candidates)):
+                if used[ci]:
+                    continue
+                current = candidates[ci]
+                merged_box = list(current[:4])
+                merged_area = current[4]
+                used[ci] = True
+                for cj in range(ci + 1, len(candidates)):
+                    if used[cj]:
+                        continue
+                    other = candidates[cj]
+                    c1x = (current[0] + current[1]) / 2
+                    c1y = (current[2] + current[3]) / 2
+                    c2x = (other[0] + other[1]) / 2
+                    c2y = (other[2] + other[3]) / 2
+                    distance = ((c1x - c2x) ** 2 + (c1y - c2y) ** 2) ** 0.5
+                    if distance < 80:
+                        merged_box[0] = min(merged_box[0], other[0])
+                        merged_box[1] = max(merged_box[1], other[1])
+                        merged_box[2] = min(merged_box[2], other[2])
+                        merged_box[3] = max(merged_box[3], other[3])
+                        merged_area += other[4]
+                        used[cj] = True
+                merged.append((merged_box[0], merged_box[1], merged_box[2], merged_box[3], merged_area,
+                               merged_box[1] - merged_box[0], merged_box[3] - merged_box[2]))
+
+            for mx1, mx2, my1, my2, marea, mbw, mbh in merged:
+                missing.append((mx1, mx2, my1, my2, '?', 0.0, -1, -1))
+
+        # Row-tail detection (rightmost edge)
+        if sorted_chars:
+            last_char = sorted_chars[-1]
+            gap_start = last_char[1]  # x_max
+            avg_width = np.mean([c[1] - c[0] for c in sorted_chars])
+            gap_end = min(w, gap_start + int(2 * avg_width))
+            gap_size = gap_end - gap_start
+
+            if gap_size > avg_width * 0.5:
+                search_y1 = max(0, bound_min - 20)
+                search_y2 = min(h, bound_max + 20)
+                roi = gray[search_y1:search_y2, gap_start:gap_end]
+                dark_mask = roi < binary_threshold
+                dark_ratio = np.sum(dark_mask) / dark_mask.size
+                if dark_ratio > 0.1:
+                    _, binary = cv2.threshold(roi, binary_threshold, 255, cv2.THRESH_BINARY)
+                    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, connectivity=8)
+                    candidates = []
+                    for j in range(1, num_labels):
+                        area = stats[j, cv2.CC_STAT_AREA]
+                        if area < min_area * 0.5:
+                            continue
+                        x = stats[j, cv2.CC_STAT_LEFT] + gap_start
+                        y = stats[j, cv2.CC_STAT_TOP] + search_y1
+                        bw = stats[j, cv2.CC_STAT_WIDTH]
+                        bh = stats[j, cv2.CC_STAT_HEIGHT]
+                        if y + bh < bound_min - 10 or y > bound_max + 10:
+                            continue
+                        # Ink-tail check (too close to last char)
+                        inter_gap = x - last_char[1]
+                        if inter_gap >= 0 and inter_gap < avg_width * 0.25:
+                            continue
+                        # Overlap check
+                        inter_x1 = max(x, last_char[0])
+                        inter_x2 = min(x + bw, last_char[1])
+                        inter_y1 = max(y, last_char[2])
+                        inter_y2 = min(y + bh, last_char[3])
+                        inter_w = max(0, inter_x2 - inter_x1)
+                        inter_h = max(0, inter_y2 - inter_y1)
+                        inter_area = inter_w * inter_h
+                        if inter_area > 0 and inter_area / area > 0.5:
+                            continue
+                        aspect_ratio = bw / bh if bh > 0 else 0
+                        if aspect_ratio < 0.2 or aspect_ratio > 5.0:
+                            continue
+                        if bw < 50 or bh < 50:
+                            continue
+                        candidates.append((x, x + bw, y, y + bh, area, bw, bh))
+                    if candidates:
+                        best = max(candidates, key=lambda c: c[4])
+                        missing.append((best[0], best[1], best[2], best[3], '?', 0.0, -1, -1))
+        return missing
+
+    # 竖排：原有按 Y 方向间隙检测逻辑
     # Check gaps between characters
     for i in range(len(sorted_chars) - 1):
         curr = sorted_chars[i]
@@ -477,6 +702,8 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
         config = {}
 
     h, w = gray.shape
+    layout_direction = config.get("layout_direction", "vertical")
+    is_horizontal = layout_direction == "horizontal"
 
     content_x_min, content_y_min, content_x_max, content_y_max = detect_main_content_bbox(gray)
     print(f"[内容裁剪] 主内容区域: ({content_x_min},{content_y_min})-({content_x_max},{content_y_max})")
@@ -503,35 +730,41 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     
     print(f"[OCR] 检测到 {len(all_chars)} 个单字（已过滤标点，排除 {len(punctuation_boxes)} 个标点区域）")
 
-    columns = classify_columns(all_chars)
-    print(f"[分列] 检测到 {len(columns)} 列")
+    columns = classify_columns(all_chars, layout_direction=layout_direction)
+    label = "行" if is_horizontal else "列"
+    print(f"[分组] 检测到 {len(columns)} {label}")
 
-    split_cols = split_mixed_columns(columns, size_threshold=config.get("size_threshold", 120))
-    print(f"[拆分] 拆分为 {len(split_cols)} 个子列")
+    split_cols = split_mixed_columns(columns, size_threshold=config.get("size_threshold", 120),
+                                      layout_direction=layout_direction)
+    print(f"[拆分] 拆分为 {len(split_cols)} 个子组")
 
     calligraphy_columns = filter_calligraphy_columns(
         split_cols,
         min_chars=config.get("min_chars_per_col", 3),
-        min_col_width=config.get("min_col_width", 130)
+        min_col_width=config.get("min_col_width", 130),
+        layout_direction=layout_direction
     )
-    print(f"[过滤] 保留 {len(calligraphy_columns)} 个书法列")
+    print(f"[过滤] 保留 {len(calligraphy_columns)} 个书法组")
 
     all_characters = []
     for new_col_idx, (old_col_idx, x_min, x_max, chars) in enumerate(calligraphy_columns):
-        sorted_chars = sorted(chars, key=lambda c: c[2])
-        claimed_boxes = []  # 每列独立的声明列表，从上到下处理
+        # 竖排按 Y 排序（从上到下），横排按 X 排序（从左到右）
+        sort_key = (lambda c: c[0]) if is_horizontal else (lambda c: c[2])
+        sorted_chars = sorted(chars, key=sort_key)
+        claimed_boxes = []  # 每组独立的声明列表
         
         # 检测遗漏字符
         missing_chars = detect_missing_chars_in_gaps(
             gray, sorted_chars, x_min, x_max,
             gap_threshold=config.get("gap_threshold", 100),
             binary_threshold=config.get("binary_threshold", 140),
-            min_area=config.get("missing_char_min_area", 500)
+            min_area=config.get("missing_char_min_area", 500),
+            layout_direction=layout_direction
         )
         
         if missing_chars:
-            print(f"[遗漏检测] 列 {new_col_idx + 1} 发现 {len(missing_chars)} 个遗漏字符")
-            sorted_chars = sorted(sorted_chars + missing_chars, key=lambda c: c[2])
+            print(f"[遗漏检测] 组 {new_col_idx + 1} 发现 {len(missing_chars)} 个遗漏字符")
+            sorted_chars = sorted(sorted_chars + missing_chars, key=sort_key)
 
         for row_idx, (cx_min, cx_max, cy_min, cy_max, text, score, line_idx, char_idx) in enumerate(sorted_chars):
             new_x, new_y, new_w, new_h = refine_char_bbox(
@@ -539,7 +772,8 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
                 binary_threshold=config.get("binary_threshold", 140),
                 padding=config.get("bbox_padding", 5),
                 exclude_boxes=punctuation_boxes,
-                claimed_regions=claimed_boxes
+                claimed_regions=claimed_boxes,
+                layout_direction=layout_direction
             )
             
             # Claim this refined box so subsequent chars don't steal its components
@@ -553,38 +787,33 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
                 new_col_idx, row_idx, text, score
             ))
 
-        print(f"[切割] 列 {new_col_idx + 1} (x={x_min}-{x_max}): {len(sorted_chars)} 个字符")
+        print(f"[切割] 组 {new_col_idx + 1}: {len(sorted_chars)} 个字符")
 
     # 移除重叠框
     print(f"[去重] 去重前: {len(all_characters)} 个字符")
     all_characters = remove_overlapping_boxes(all_characters, iou_threshold=config.get("iou_threshold", 0.3))
     print(f"[去重] 去重后: {len(all_characters)} 个字符")
 
-    # 后处理：修正过大的框（通常是列末尾的遗漏字符）
-    # 按列分组
-    col_chars = {}
+    # 后处理：修正过大的框（按组分）
+    group_chars = {}
     for char in all_characters:
         col_idx = char[6]
-        if col_idx not in col_chars:
-            col_chars[col_idx] = []
-        col_chars[col_idx].append(char)
+        if col_idx not in group_chars:
+            group_chars[col_idx] = []
+        group_chars[col_idx].append(char)
     
-    # 对每列检查异常大的框
-    for col_idx, chars in col_chars.items():
+    for col_idx, chars in group_chars.items():
         areas = [c[2] * c[3] for c in chars]
         if not areas:
             continue
         median_area = np.median(areas)
-        print(f"[后处理] 列 {col_idx + 1}: 中位面积 {median_area:.0f}, 最大面积 {max(areas):.0f}")
+        print(f"[后处理] 组 {col_idx + 1}: 中位面积 {median_area:.0f}, 最大面积 {max(areas):.0f}")
         
         for i, char in enumerate(chars):
             area = char[2] * char[3]
-            # 如果面积大于中位数的3倍，尝试缩小
             if area > median_area * 3.0 and median_area > 1000:
-                print(f"[后处理] 列 {col_idx + 1} 行 {char[7] + 1}: 面积 {area:.0f} 过大，缩小")
-                # 计算目标尺寸（基于中位数面积的平方根）
+                print(f"[后处理] 组 {col_idx + 1} 元素 {char[7] + 1}: 面积 {area:.0f} 过大，缩小")
                 target_size = int(np.sqrt(median_area))
-                # 保持中心不变，缩小框
                 cx = char[0] + char[2] // 2
                 cy = char[1] + char[3] // 2
                 
@@ -594,7 +823,6 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
                 new_x = max(0, cx - new_w // 2)
                 new_y = max(0, cy - new_h // 2)
                 
-                # 更新字符信息
                 chars[i] = (
                     new_x, new_y, new_w, new_h,
                     gray[new_y:new_y+new_h, new_x:new_x+new_w],
@@ -604,8 +832,8 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     
     # 重新合并所有字符
     all_characters = []
-    for col_idx in sorted(col_chars.keys()):
-        all_characters.extend(col_chars[col_idx])
+    for col_idx in sorted(group_chars.keys()):
+        all_characters.extend(group_chars[col_idx])
 
     return all_characters
 

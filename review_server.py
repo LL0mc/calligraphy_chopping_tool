@@ -1,9 +1,9 @@
-"""校对服务器 v4 - orig_idx 跟踪 + 提交功能"""
+"""校对服务器 v5 - 多书帖 + 横排支持 + 页面元数据"""
 import sys, os, json, cv2, numpy as np, base64, traceback, subprocess, time
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, request, jsonify
-from config import PAGES_DIR, CALLIGRAPHER, SOURCE_TEXT, CROPPED_DIR, CHAR_DB_DIR, PDF_PATH
+from config import PAGES_DIR, CALLIGRAPHER, SOURCE_TEXT, CROPPED_DIR, CHAR_DB_DIR, PDF_PATH, get_profile, COPYBOOK_PROFILES, LAYOUT_DIRECTION
 from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
@@ -13,6 +13,48 @@ FONT_PATH = r'C:\Windows\Fonts\msyh.ttc'
 def get_font():
     try: return ImageFont.truetype(FONT_PATH, 14)
     except: return ImageFont.load_default()
+
+def get_page_meta(page_num):
+    """读取页面级元数据（calligrapher/source_text/layout_direction），返回默认值"""
+    meta_path = os.path.join(PAGES_DIR, f"page_{page_num:03d}_meta.json")
+    if os.path.exists(meta_path):
+        with open(meta_path, encoding='utf-8') as f:
+            return json.load(f)
+    return {"calligrapher": CALLIGRAPHER, "source_text": SOURCE_TEXT,
+            "layout_direction": LAYOUT_DIRECTION}
+
+def set_page_meta(page_num, **kwargs):
+    """写入页面级元数据"""
+    meta = get_page_meta(page_num)
+    meta.update(kwargs)
+    meta_path = os.path.join(PAGES_DIR, f"page_{page_num:03d}_meta.json")
+    with open(meta_path, 'w', encoding='utf-8') as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    return meta
+
+def get_layout_direction(page_num):
+    """获取页面排版方向"""
+    return get_page_meta(page_num).get("layout_direction", LAYOUT_DIRECTION)
+
+def get_all_profiles():
+    """返回所有可用书帖 profile（配置中 + 从 cropped 目录自动发现）"""
+    profiles = dict(COPYBOOK_PROFILES)
+    # Auto-discover from cropped directory: scan for {calligrapher}/{source_text}
+    if os.path.exists(CROPPED_DIR):
+        for cg in sorted(os.listdir(CROPPED_DIR)):
+            cg_path = os.path.join(CROPPED_DIR, cg)
+            if not os.path.isdir(cg_path):
+                continue
+            for st in sorted(os.listdir(cg_path)):
+                st_path = os.path.join(cg_path, st)
+                if not os.path.isdir(st_path):
+                    continue
+                key = f"{cg}_{st}"
+                if key not in profiles:
+                    profiles[key] = {"calligrapher": cg, "source_text": st,
+                                     "layout_direction": LAYOUT_DIRECTION,
+                                     "pdf_path": ""}
+    return profiles
 
 def load_data(page_num):
     """Load OCR data, then overlay corrections by orig_idx."""
@@ -74,11 +116,12 @@ def load_clean(page_num):
 def drop_cache(page_num):
     _clean_cache.pop(page_num, None)
 
-def annotate_image(data, page_img, selected=0, server_scale=1.0):
+def annotate_image(data, page_img, selected=0, server_scale=1.0, page_num=0):
     if server_scale < 1:
         img = cv2.resize(page_img, None, fx=server_scale, fy=server_scale)
     else:
         img = page_img.copy()
+    meta = get_page_meta(page_num) if page_num else {}
     boxes = []
     for i, d in enumerate(data):
         xs = int(d['x'] * server_scale)
@@ -95,6 +138,7 @@ def annotate_image(data, page_img, selected=0, server_scale=1.0):
             'manual_corrected': d.get('manual_corrected', False),
             'confidence': d.get('confidence', 0),
             'x': xs, 'y': ys, 'w': ws, 'h': hs,
+            'calligrapher': meta.get('calligrapher', CALLIGRAPHER),
         })
     return img_to_b64(img), boxes
 
@@ -152,6 +196,11 @@ tr.sel{background:#3a3028}
 </head>
 <body>
 <div class="toolbar">
+  <span>书帖:</span>
+  <select id="cbSel" onchange="switchCopybook()" style="background:#3a3028;color:#d4c9b8;border:none;padding:4px 8px;border-radius:4px">
+    _CB_OPTIONS_
+  </select>
+  <span style="color:#888;font-size:12px" id="calligrapherLabel"></span>
   <span>页码:</span><input type="number" id="pi" value="_PAGE_" min="1" style="width:60px">
   <button onclick="loadPage()">加载</button>
   <button onclick="goPrev()">◀ 上一页</button>
@@ -196,7 +245,7 @@ tr.sel{background:#3a3028}
         <button class="bad" onclick="addChar()">新增</button>
         <span id="msg" class="msg"></span>
       </div>
-      <div class="h">拖拽调整位置 | 回车保存 | 点击框切换 | 列号从右到左</div>
+      <div class="h">拖拽调整位置 | 回车保存 | 点击框切换 | <span id="dirHint">列号从右到左</span></div>
 <div style="font-size:11px;color:#888;margin-top:4px">
   <span style="color:#b4dcff">█ 正常</span>
   <span style="color:#ffcc00">█ 形状异常</span>
@@ -220,11 +269,18 @@ var dr = null;
 var ds = null;
 var SCALE = _SCALE_;
 var PAGE = _PAGE_;
+var LAYOUT_DIR = '_LAYOUT_';
 
 function getSortedIndices() {
   var si2 = [];
   for (var i = 0; i < bx.length; i++) si2.push(i);
   si2.sort(function(a,b){
+    if (LAYOUT_DIR === 'horizontal') {
+      // 横排 LTR：行升序（上→下），列升序（左→右）
+      if (bx[a].col !== bx[b].col) return bx[a].col - bx[b].col;
+      return bx[a].row - bx[b].row;
+    }
+    // 竖排 RTL：列降序（右→左），行升序（上→下）
     if (bx[a].col !== bx[b].col) return bx[b].col - bx[a].col;
     return bx[a].row - bx[b].row;
   });
@@ -242,9 +298,9 @@ function rt() {
     var b = bx[i];
     var dt = b.corrected_text || b.text || '';
     var pc = Math.round(b.confidence * 100);
-    var dc = mc - b.col + 1;
+    var gn = LAYOUT_DIR === 'horizontal' ? b.col + 1 : mc - b.col + 1;
     h += '<tr onclick="sc('+i+')" id="r'+i+'" class="'+(i===si?'sel':'')+'">'+
-      '<td>'+(k+1)+'</td><td>'+dc+'</td><td>'+b.row+'</td>'+
+      '<td>'+(k+1)+'</td><td>'+gn+'</td><td>'+b.row+'</td>'+
       '<td>'+esc(dt)+'</td><td>'+pc+'%</td><td>'+Math.round(b.x/SCALE)+'</td><td>'+Math.round(b.y/SCALE)+'</td></tr>';
   }
   tb.innerHTML = h;
@@ -253,6 +309,26 @@ function rt() {
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function updatePara() {
+  if (LAYOUT_DIR === 'horizontal') {
+    // 横排：按行分组，行内左到右
+    var maxRow = 0;
+    for (var i = 0; i < bx.length; i++) { if (bx[i].row > maxRow) maxRow = bx[i].row; }
+    var lines = [];
+    for (var r = 0; r <= maxRow; r++) {
+      var items = [];
+      for (var i = 0; i < bx.length; i++) {
+        var b = bx[i];
+        if (b.row !== r) continue;
+        items.push({col: b.col, text: b.corrected_text || b.text || ''});
+      }
+      items.sort(function(a,b){return a.col - b.col;});
+      var rowText = items.map(function(x){return x.text;}).join('');
+      if (rowText) lines.push(rowText);
+    }
+    document.getElementById('para').textContent = lines.join(' | ');
+    return;
+  }
+  // 竖排：按列分组，列从右到左
   var mc = 1;
   for (var i = 0; i < bx.length; i++) { if (bx[i].col > mc) mc = bx[i].col; }
   var lines = [];
@@ -659,27 +735,28 @@ function checkStatus(p, cb) {
 
 function gotoPage(p) {
   if (p < 1) return;
+  var cb = document.getElementById('cbSel').value;
   document.getElementById('pi').value = p;
   showLoading('检查页面状态...');
   fetch('/status?p=' + p).then(function(r){return r.json();}).then(function(d){
     if (d.status === 'unprocessed') {
       showLoading('正在检测第' + p + '页...');
-      fetch('/run_page', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:p})})
+      fetch('/run_page', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:p, cb:cb})})
         .then(function(r){return r.json();}).then(function(d2){
-          if (d2.ok) { window.location.href = '/?p=' + p; }
+          if (d2.ok) { window.location.href = '/?cb=' + cb + '&p=' + p; }
           else { hideLoading(); alert(d2.m); }
         }).catch(function(e){ hideLoading(); alert('检测请求失败: '+e); });
     } else if (d.status === 'skipped') {
       if (confirm('第' + p + '页已跳过，是否取消跳过并重新检测？')) {
         showLoading('正在检测第' + p + '页...');
-        fetch('/run_page', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:p})})
+        fetch('/run_page', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:p, cb:cb})})
           .then(function(r){return r.json();}).then(function(d2){
-            if (d2.ok) { window.location.href = '/?p=' + p; }
+            if (d2.ok) { window.location.href = '/?cb=' + cb + '&p=' + p; }
             else { hideLoading(); alert(d2.m); }
           }).catch(function(e){ hideLoading(); alert('检测请求失败: '+e); });
       } else { hideLoading(); }
     } else {
-      window.location.href = '/?p=' + p;
+      window.location.href = '/?cb=' + cb + '&p=' + p;
     }
   }).catch(function(e){ hideLoading(); alert('状态检查失败: '+e); });
 }
@@ -698,8 +775,22 @@ function skipPage() {
     }).catch(function(e){ hideLoading(); alert('跳过请求失败: '+e); });
 }
 
+function switchCopybook() {
+  var cb = document.getElementById('cbSel').value;
+  window.location.href = '/?cb=' + cb + '&p=' + PAGE;
+}
+
+function updateDirHint() {
+  var h = document.getElementById('dirHint');
+  if (h) h.textContent = LAYOUT_DIR === 'horizontal' ? '行号从上到下' : '列号从右到左';
+}
+
 function initFirst() {
   if (bx.length === 0) return;
+  updateDirHint();
+  // Show calligrapher info
+  var cl = document.getElementById('calligrapherLabel');
+  if (cl && bx[0].calligrapher) cl.textContent = bx[0].calligrapher;
   var si2 = getSortedIndices();
   si = si2[0]; var b = bx[si]; var label = b.corrected_text || b.text || '';
   document.getElementById('sl').textContent = '1 (' + (si+1) + ')';
@@ -712,7 +803,7 @@ function initFirst() {
   document.getElementById('eh').value = Math.round(b.h / SCALE);
   cropImg(); dc(); updatePara();
 }
-document.addEventListener('DOMContentLoaded', function(){ rt(); checkStatus(PAGE); });
+document.addEventListener('DOMContentLoaded', function(){ rt(); checkStatus(PAGE); updateDirHint(); });
 
 function setupCanvas() {
   var img = document.getElementById('img');
@@ -743,6 +834,8 @@ window.addEventListener('load', function(){ setupCanvas(); initFirst(); });
 def index():
     try:
         page = request.args.get('p', 24, type=int)
+        cb_name = request.args.get('cb', 'default')
+        profile = get_profile(cb_name)
         raw, clean, mapping = load_clean(page)
         img = load_img(page)
         if raw is None or img is None:
@@ -751,12 +844,23 @@ def index():
         h, w = img.shape[:2]
         max_dim = 2000
         scale = min(max_dim/w, max_dim/h, 1.0)
-        b64, boxes = annotate_image(clean, img, 0, scale)
+        b64, boxes = annotate_image(clean, img, 0, scale, page_num=page)
+        layout_dir = get_layout_direction(page)
         html = HTML.replace('_PAGE_', str(page))
         html = html.replace('_IMG_', b64)
         html = html.replace('_BX_', json.dumps(boxes, ensure_ascii=False))
         html = html.replace('_TOTAL_', str(len(clean)))
         html = html.replace('_SCALE_', str(scale))
+        html = html.replace('_LAYOUT_', layout_dir)
+
+        # Build copybook selector options
+        all_profiles = get_all_profiles()
+        cb_opts = ''.join(
+            f'<option value="{k}" {"selected" if k == cb_name else ""}>{v.get("source_text")} - {v.get("calligrapher")}</option>'
+            for k, v in all_profiles.items()
+        )
+        html = html.replace('_CB_OPTIONS_', cb_opts)
+
         return html
     except:
         return f"<pre>{traceback.format_exc()}</pre>", 500
@@ -772,7 +876,7 @@ def get_annotate():
     if idx >= len(clean): idx = 0
     h, w = img.shape[:2]
     scale = min(1600/w, 1600/h, 1.0)
-    b64, boxes = annotate_image(clean, img, idx, scale)
+    b64, boxes = annotate_image(clean, img, idx, scale, page_num=page)
     return jsonify({'g': b64, 'bx': boxes})
 
 @app.route('/crop')
@@ -919,11 +1023,20 @@ def submit_page():
         if img is None:
             return jsonify({'ok': False, 'm': '图片加载失败'})
 
-        # Sort by reading order: col DESC, row ASC
-        clean_sorted = sorted(clean, key=lambda d: (-d['col'], d['row']))
+        # Sort by reading order based on layout direction
+        layout_dir = get_layout_direction(page)
+        if layout_dir == "horizontal":
+            clean_sorted = sorted(clean, key=lambda d: (d['col'], d['row']))
+        else:
+            clean_sorted = sorted(clean, key=lambda d: (-d['col'], d['row']))
+
+        # Use page-level calligrapher/source for cropped storage
+        meta = get_page_meta(page)
+        page_cg = meta.get("calligrapher", CALLIGRAPHER)
+        page_st = meta.get("source_text", SOURCE_TEXT)
 
         # Crop and save each character
-        page_dir = os.path.join(CROPPED_DIR, CALLIGRAPHER, SOURCE_TEXT, f"page_{page:03d}")
+        page_dir = os.path.join(CROPPED_DIR, page_cg, page_st, f"page_{page:03d}")
         # Clean old cropped directory
         if os.path.exists(page_dir):
             import shutil
@@ -961,14 +1074,14 @@ def submit_page():
                 'col': d['col'], 'row': d['row'],
                 'confidence': d.get('confidence', 0),
                 'x': x, 'y': y, 'w': w, 'h': h,
-                'rel_path': os.path.join("cropped", CALLIGRAPHER, SOURCE_TEXT, f"page_{page:03d}", fname),
+                'rel_path': os.path.join("cropped", page_cg, page_st, f"page_{page:03d}", fname),
             })
 
         # Build full text in reading order for context
         full_text = [e['char'] for e in char_entries]
 
         # Update Obsidian character database — collect per char then write once
-        base_rel = os.path.join(CALLIGRAPHER, SOURCE_TEXT)
+        base_rel = os.path.join(page_cg, page_st)
         note_dir = os.path.join(CHAR_DB_DIR, base_rel)
         os.makedirs(note_dir, exist_ok=True)
 
@@ -1019,8 +1132,8 @@ def submit_page():
             table = "\n".join([
                 f"---",
                 f'char: "{ch}"',
-                f'calligrapher: "{CALLIGRAPHER}"',
-                f'source: "{SOURCE_TEXT}"',
+                f'calligrapher: "{page_cg}"',
+                f'source: "{page_st}"',
                 f"---",
                 f"",
                 f"# {ch}",
@@ -1135,6 +1248,31 @@ def skip_page():
         return jsonify({'ok': True, 'm': f'已跳过第{page}页'})
     except Exception as e:
         return jsonify({'ok': False, 'm': f'跳过失败: {e}'})
+
+@app.route('/api/copybooks')
+def list_copybooks():
+    """列出所有可用书帖"""
+    profiles = get_all_profiles()
+    result = []
+    for key, val in profiles.items():
+        result.append({
+            'key': key,
+            'calligrapher': val.get('calligrapher', ''),
+            'source_text': val.get('source_text', ''),
+            'layout_direction': val.get('layout_direction', LAYOUT_DIRECTION),
+        })
+    return jsonify(result)
+
+@app.route('/api/meta', methods=['GET', 'POST'])
+def page_meta_api():
+    """获取/设置页面级元数据"""
+    page = request.args.get('p', 24, type=int)
+    if request.method == 'POST':
+        req = request.json
+        meta = set_page_meta(page, **{k: v for k, v in req.items() if k in ('calligrapher', 'source_text', 'layout_direction')})
+        return jsonify({'ok': True, 'meta': meta})
+    meta = get_page_meta(page)
+    return jsonify(meta)
 
 if __name__ == '__main__':
     url = 'http://127.0.0.1:5000/?p=24'
