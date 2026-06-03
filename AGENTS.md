@@ -119,3 +119,34 @@ One note per char. Frontmatter: char/calligrapher/source for Dataview. Table of 
 - Compose: http://127.0.0.1:5001/compose
 - Pipeline single page: `python pipeline.py N --no-correct`
 - Start scripts: `start_review.bat`, `start_char_viewer.bat`
+
+## Extension: 横排 + 多书帖 (branch: feat/horizontal-layout)
+
+### Status: 🚧 已实现，分支已推送
+
+**横排支持** — `char_segmenter.py`:
+- `classify_columns` 按 Y 中心聚为行
+- `detect_missing_chars_in_gaps` 横排查 X 间隙
+- `refine_char_bbox` 互换 search_margin
+- `segment_characters` 内部按 X 排序
+
+**多书帖** — `review_server.py`:
+- `page_{num}_meta.json`：每页独立 calligrapher/source_text/layout_direction
+- Toolbar 书帖下拉选择器（COPYBOOK_PROFILES + auto-discover）
+- 阅读顺序自适应（竖排 RTL / 横排 LTR）
+- `/api/copybooks` + `/api/meta` 端点
+
+**待测试（未验证）：**
+- 横排真实字帖的实际 Pipeline 效果
+- 横排 missing char 检测的准确率
+- 书帖切换后 page_meta 的流转
+- 横排段落视图（updatePara）的正确性
+
+### How to use
+```bash
+git checkout feat/horizontal-layout
+# 在 config.py 中设置 LAYOUT_DIRECTION = "horizontal"
+# 或通过 COPYBOOK_PROFILES 添加横排书帖
+python pipeline.py N --no-correct
+python review_server.py
+```
