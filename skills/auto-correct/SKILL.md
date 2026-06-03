@@ -1,12 +1,9 @@
+---
+name: auto-correct
+description: Auto-correct OCR text for calligraphy copybook pages. Use this whenever the user says "校对" (proofread), "修正" (correct), "纠正" (fix), mentions a page number in context of OCR results, or wants to improve recognition text of a processed calligraphy page. Also triggers when the user wants to run the pipeline on an unprocessed page, or check for missing/misdetected characters. Adapts to both vertical (RTL) and horizontal (LTR) reading orders automatically. Text-only correction — never modifies box coordinates.
+---
+
 # Skill: Calligraphy Auto-Correct
-
-自动校对书法字帖的 OCR 检测结果，修正文字、提醒遗漏/误检。只改 `corrected_text`，不动框坐标。
-
-## Triggers
-
-- `校对第 {N} 页` / `修正第 {N} 页的文字`
-- `自动校对第 {N} 页`
-- `纠正 page {N} 的 OCR 结果`
 
 ## Workflow
 

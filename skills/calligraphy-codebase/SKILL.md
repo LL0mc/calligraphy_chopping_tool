@@ -1,6 +1,9 @@
-# Skill: Calligraphy Codebase Knowledge
+---
+name: calligraphy-codebase
+description: Knowledge base for the 书法练习助手 (calligraphy practice assistant) project. Use this whenever the user asks about project architecture, module structure, config parameters, code conventions, file paths, reading order rules, output directory layout, or any technical question about the OCR pipeline, review GUI, char viewer, compose layout engine, or Obsidian integration. This skill replaces reading AGENTS.md and docs/ files — use it for any project-related technical question to save time and avoid context waste.
+---
 
-书法练习助手项目的代码库知识。加载后可直接回答架构/配置/模块等问题，无需读代码。
+# Skill: Calligraphy Codebase Knowledge
 
 ## Overview
 
