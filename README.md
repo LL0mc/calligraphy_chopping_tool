@@ -6,6 +6,14 @@
 > - [Pipeline 检测模块详解](docs/pipeline_detail.md) — PDF 渲染、字符切割（OCR + 连通域精炼）、OCR 识别、置信度分类的逐步骤技术说明
 > - [Web 应用模块详解](docs/gui_detail.md) — 校对服务器、字符查看器、集字排版引擎、Obsidian 导出的实现逻辑与数据流
 
+<div align="center">
+  <img src="docs/images/architecture.png" alt="系统架构" width="85%">
+  <p><em>字帖 → 单字（OCR + 连通域精炼 → Agent 自动校对 ╌╌╌ 人工校对）→ 单字库 → 浏览 / 排版</em></p>
+</div>
+
+<details>
+<summary>📐 Mermaid 源码（可编辑 / 重新渲染）</summary>
+
 ```mermaid
 flowchart TD
     PDF[PDF 字帖] --> Render[pypdfium2 渲染<br/>2496×3720 灰度图]
@@ -38,6 +46,8 @@ flowchart TD
 
     linkStyle 5,6 stroke:#ff8f00,stroke-width:2px,stroke-dasharray:5 5
 ```
+
+</details>
 
 ## 三大 Web 应用
 
