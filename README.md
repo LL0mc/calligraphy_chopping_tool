@@ -1,5 +1,7 @@
 # 书法练习助手 — 字帖 OCR + 字库管理 + 集字排版
 
+> [English](README.en.md) | 中文
+
 将竖排书法字帖逐字切割、OCR 识别、人工校对、浏览检索、集字排版，建立可检索的 Obsidian 字库。覆盖从字帖到可复用的单字资源库全流程。
 
 > **详细文档：**
@@ -150,7 +152,9 @@ Pillow 全分辨率排版引擎，将裁剪的单字拼合成书法作品：
 ├── docs/
 │   ├── images/                # 文档配图
 │   ├── pipeline_detail.md     # Pipeline 模块详细说明
-│   └── gui_detail.md          # Web 应用模块详细说明
+│   ├── pipeline_detail.en.md  # Pipeline docs (English)
+│   ├── gui_detail.md          # Web 应用模块详细说明
+│   └── gui_detail.en.md       # Web app docs (English)
 └── output/                   # 输出目录（git ignored）
     ├── pages/                # 页面渲染 + OCR 结果 JSON
     ├── characters/           # Pipeline 切割字符图
