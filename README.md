@@ -8,33 +8,35 @@
 
 ```mermaid
 flowchart TD
-    subgraph Pipeline[离线处理 Pipeline]
-        PDF[PDF 字帖] --> Render[pypdfium2 渲染<br/>~200 DPI]
-        Render --> CropIn[页面预处理<br/>内容裁剪 + CLAHE]
-        CropIn --> Segment[字符切割<br/>OCR字级检测<br/>标点过滤 + 分列<br/>遗漏检测 + 连通域精炼<br/>去重 + 后处理]
-        Segment --> OCR[OCR 识别<br/>原文复用 ≥0.6<br/>二次识别回退]
-        OCR --> JSON[_ocr_results.json]
-    end
+    PDF[PDF 字帖] --> Render[pypdfium2 渲染<br/>2496×3720 灰度图]
+    Render --> Detect[OCR 字级检测 + 连通域精炼<br/>标点过滤 / 分列 / 遗漏检测 / 去重]
 
-    subgraph Review[人工校对]
-        JSON --> ReviewGUI[review_server.py<br/>Port 5000]
-        ReviewGUI --> |提交| Submit[裁剪切片 4px<br/>output/cropped/]
-        ReviewGUI --> |修正| Correct[_corrected.json]
-        Submit --> Obsidian[Obsidian 字库<br/>字库/书家/书帖/字.md]
-    end
+    Detect --> Review[人工校对<br/>review_server.py  Port 5000<br/>拖拽框 / 修正文字 / 增删字符]
+    Detect -.-> Agent[Agent 自动校对<br/>auto-correct skill<br/>修正文本 / 提醒遗漏误检]
+    Agent -.-> Review
 
-    subgraph Usage[字库浏览与排版]
-        Crop[output/cropped/] --> CharView[char_viewer.py<br/>Port 5001]
-        CharView --> Browse[字库浏览<br/>Fabric.js 240×240<br/>4种模式 / 米字格]
-        CharView --> Compose[集字排版<br/>Pillow 全分辨率<br/>自动格子 / 背景纹理]
-        Compose --> Export[导出 PNG / PDF]
-    end
+    Review --> Submit[提交确认]
 
-    style Pipeline fill:#e3f2fd,stroke:#1565c0,color:#000
-    style Review fill:#e8f5e9,stroke:#2e7d32,color:#000
-    style Usage fill:#fff3e0,stroke:#e65100,color:#000
+    Submit --> Slice[切片存储<br/>output/cropped/ 4px 内边距]
+
+    Slice --> Browse[字库浏览<br/>char_viewer.py<br/>搜索 / 四种图像模式 / 米字格]
+    Slice --> Compose[集字排版<br/>compose_renderer.py<br/>Pillow 全分辨率 / 自动格子]
+    Slice --> DB[Obsidian 字库<br/>字库/书家/书帖/字.md<br/>每字笔记 + 嵌入图像引用]
+    Compose --> Export[导出 PNG / PDF]
+
+    style PDF fill:#1565c0,color:#fff
+    style Render fill:#1e88e5,color:#fff
+    style Detect fill:#42a5f5,color:#fff
+    style Agent fill:#ff8f00,color:#fff,stroke-dasharray: 5 5
+    style Review fill:#2e7d32,color:#fff
     style Submit fill:#ef5350,color:#fff
-    style Obsidian fill:#7b1fa2,color:#fff
+    style Slice fill:#37474f,color:#fff
+    style DB fill:#7b1fa2,color:#fff
+    style Browse fill:#6d4c41,color:#fff
+    style Compose fill:#e65100,color:#fff
+    style Export fill:#f57c00,color:#fff
+
+    linkStyle 5,6 stroke:#ff8f00,stroke-width:2px,stroke-dasharray:5 5
 ```
 
 ## 三大 Web 应用
