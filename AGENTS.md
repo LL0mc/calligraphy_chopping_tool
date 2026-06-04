@@ -150,3 +150,12 @@ git checkout feat/horizontal-layout
 python pipeline.py N --no-correct
 python review_server.py
 ```
+
+## Refactoring & Testing
+
+完整的分析与计划见 `docs/refactoring_plan.md`。
+
+- **Phase 1:** `src/types.py` 引入 DataClass（CharBox / OcrResult / Column），消除魔数索引
+- **Phase 2:** 第一梯队单元测试（纯逻辑函数：remove_overlapping_boxes / expand_box / classify_columns 等）
+- **Phase 3:** 第二梯队单元测试（合成图像：detect_main_content_bbox / detect_missing_chars_in_gaps / refine_char_bbox）
+- **Phase 4:** 集成测试（黄金输出回归）

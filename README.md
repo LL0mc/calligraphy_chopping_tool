@@ -6,10 +6,36 @@
 > - [Pipeline 检测模块详解](docs/pipeline_detail.md) — PDF 渲染、字符切割（OCR + 连通域精炼）、OCR 识别、置信度分类的逐步骤技术说明
 > - [Web 应用模块详解](docs/gui_detail.md) — 校对服务器、字符查看器、集字排版引擎、Obsidian 导出的实现逻辑与数据流
 
-<div align="center">
-  <img src="docs/images/architecture.png" alt="系统架构" width="85%">
-  <p><em>总体架构：Pipeline 检测 → GUI 校对 → 切片存储 + Obsidian 字库 → 字符查看器 / 集字排版</em></p>
-</div>
+```mermaid
+flowchart TD
+    subgraph Pipeline[离线处理 Pipeline]
+        PDF[PDF 字帖] --> Render[pypdfium2 渲染<br/>~200 DPI]
+        Render --> CropIn[页面预处理<br/>内容裁剪 + CLAHE]
+        CropIn --> Segment[字符切割<br/>OCR字级检测<br/>标点过滤 + 分列<br/>遗漏检测 + 连通域精炼<br/>去重 + 后处理]
+        Segment --> OCR[OCR 识别<br/>原文复用 ≥0.6<br/>二次识别回退]
+        OCR --> JSON[_ocr_results.json]
+    end
+
+    subgraph Review[人工校对]
+        JSON --> ReviewGUI[review_server.py<br/>Port 5000]
+        ReviewGUI --> |提交| Submit[裁剪切片 4px<br/>output/cropped/]
+        ReviewGUI --> |修正| Correct[_corrected.json]
+        Submit --> Obsidian[Obsidian 字库<br/>字库/书家/书帖/字.md]
+    end
+
+    subgraph Usage[字库浏览与排版]
+        Crop[output/cropped/] --> CharView[char_viewer.py<br/>Port 5001]
+        CharView --> Browse[字库浏览<br/>Fabric.js 240×240<br/>4种模式 / 米字格]
+        CharView --> Compose[集字排版<br/>Pillow 全分辨率<br/>自动格子 / 背景纹理]
+        Compose --> Export[导出 PNG / PDF]
+    end
+
+    style Pipeline fill:#e3f2fd,stroke:#1565c0,color:#000
+    style Review fill:#e8f5e9,stroke:#2e7d32,color:#000
+    style Usage fill:#fff3e0,stroke:#e65100,color:#000
+    style Submit fill:#ef5350,color:#fff
+    style Obsidian fill:#7b1fa2,color:#fff
+```
 
 ## 三大 Web 应用
 
