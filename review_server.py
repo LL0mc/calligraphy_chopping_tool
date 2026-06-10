@@ -127,6 +127,20 @@ HTML = r"""<!DOCTYPE html>
   --font-mono: 'JetBrains Mono', 'Consolas', monospace;
   --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
 }
+body.light{
+  --bg-deep: #f5f0e8;
+  --bg-surface: #ffffff;
+  --glass-bg: rgba(255,255,255,0.7);
+  --glass-border: rgba(0,0,0,0.08);
+  --glass-hover: rgba(0,0,0,0.14);
+  --text-primary: #2c2416;
+  --text-muted: #6b6050;
+  --text-faint: #9a9080;
+  --accent-red: #d13b30;
+  --accent-red-glow: rgba(209,59,48,0.2);
+  --accent-blue: #3b6fe0;
+  --accent-blue-glow: rgba(59,111,224,0.18);
+}
 *{margin:0;padding:0;box-sizing:border-box}
 body{
   font-family:var(--font-ui);
@@ -197,8 +211,9 @@ body{
 table{width:100%;border-collapse:collapse;font-size:13px;font-family:var(--font-ui)}
 th{
   background:rgba(255,255,255,0.06);padding:6px 8px;text-align:left;
-  position:sticky;top:0;color:var(--text-muted);font-weight:500;font-size:12px;
+  position:sticky;top:0;z-index:2;color:var(--text-muted);font-weight:500;font-size:12px;
 }
+body.light th{background:rgba(0,0,0,0.04)}
 td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:var(--transition)}
 tr{transition:var(--transition)}
 tr:hover td{background:rgba(255,255,255,0.04)}
@@ -241,11 +256,12 @@ tr.sel td:first-child::before{
 .legend .dot.selected::before{background:var(--accent-green);box-shadow:0 0 5px rgba(52,211,153,0.3)}
 .para-glass{
   background:var(--glass-bg);border:1px solid var(--glass-border);
-  border-radius:var(--radius-md);padding:10px 14px;
+  border-radius:var(--radius-md);padding:12px 14px;
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
 }
+.para-glass .sep{height:1px;background:var(--glass-border);margin:8px 0 10px}
 .para{font-size:14px;line-height:1.6;word-break:break-all;max-height:18vh;overflow-y:auto;color:var(--text-primary)}
-.para .label{color:var(--text-muted);font-size:11px;margin-bottom:4px;display:block}
+.para .label{color:var(--text-muted);font-size:11px;display:block}
 .msg{padding:3px 10px;border-radius:var(--radius-sm);display:inline-block;font-size:12px;color:var(--text-faint)}
 .msg.ok{background:rgba(52,211,153,0.12);color:var(--accent-green)}
 .overlay{
@@ -297,6 +313,7 @@ tr.sel td:first-child::before{
   <button class="btn" onclick="skipPage()" style="font-size:12px">⏭ 跳过</button>
   <span>选中: <b id="sl">-</b> / _TOTAL_</span>
   <span id="sm" style="color:var(--text-faint);font-size:13px"></span>
+  <button class="btn" id="themeBtn" onclick="toggleTheme()" title="切换浅色/深色模式" style="font-size:16px;line-height:1">🌙</button>
   <button class="btn btn-success" onclick="submitPage()">提交</button>
 </div>
 <div id="loadingOverlay" class="overlay" style="display:none">
@@ -349,6 +366,7 @@ tr.sel td:first-child::before{
     </div>
     <div class="para-glass">
       <span class="label">段落预览</span>
+      <div class="sep"></div>
       <div id="para" class="para"></div>
     </div>
     <input class="fi" id="fi" placeholder="筛选文字/OCR..." oninput="ft()">
@@ -845,6 +863,15 @@ function skipPage() {
     }).catch(function(e){ hideLoading(); alert('跳过请求失败: '+e); });
 }
 
+function toggleTheme() {
+  var b = document.body;
+  var isLight = b.classList.toggle('light');
+  document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙';
+  try { localStorage.setItem('review_theme', isLight ? 'light' : 'dark'); } catch(e) {}
+}
+(function(){ var t = 'dark'; try { t = localStorage.getItem('review_theme') || 'dark'; } catch(e) {}
+  if (t === 'light') { document.body.classList.add('light'); document.getElementById('themeBtn').textContent = '☀️'; }
+})();
 function initFirst() {
   if (bx.length === 0) return;
   var si2 = getSortedIndices();
