@@ -6,96 +6,153 @@
 <title>字帖字符查看器</title>
 <script src="/static/js/fabric.min.js">
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=ZCOOL+QingKe+HuangYou&family=JetBrains+Mono&display=swap" rel="stylesheet">
 <style>
+:root {
+  --bg-deep: #0e1420;
+  --bg-surface: #141a28;
+  --glass-bg: rgba(255,255,255,0.04);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-hover: rgba(255,255,255,0.12);
+  --text-primary: #e8e0d4;
+  --text-muted: #908078;
+  --text-faint: #605850;
+  --accent-red: #e8453c;
+  --accent-red-glow: rgba(232,69,60,0.25);
+  --accent-blue: #4a7cf7;
+  --accent-blue-glow: rgba(74,124,247,0.2);
+  --accent-gold: #c09860;
+  --accent-green: #34d399;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --font-ui: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-display: 'ZCOOL QingKe HuangYou', 'KaiTi', serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+  --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+body.light{
+  --bg-deep: #f2e8c8;
+  --bg-surface: #faf4e0;
+  --glass-bg: rgba(255,252,240,0.8);
+  --glass-border: rgba(0,0,0,0.07);
+  --glass-hover: rgba(0,0,0,0.12);
+  --text-primary: #2c2416;
+  --text-muted: #6b6050;
+  --text-faint: #9a9080;
+  --accent-red: #d13b30;
+  --accent-red-glow: rgba(209,59,48,0.2);
+  --accent-blue: #3b6fe0;
+  --accent-blue-glow: rgba(59,111,224,0.18);
+  --input-bg: rgba(0,0,0,0.04);
+  --input-border: rgba(0,0,0,0.12);
+}
+body.light select, body.light input[type=text], body.light input[type=number], body.light input[type=search], body.light textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+}
+body.light select:focus, body.light input[type=text]:focus, body.light input[type=number]:focus, body.light input[type=search]:focus, body.light textarea:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 8px var(--accent-blue-glow);
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  background: #2a2520; color: #d4c9b0;
+  font-family: var(--font-ui);
+  background: var(--bg-deep);
+  color: var(--text-primary);
   height: 100vh; display: flex; flex-direction: column;
   user-select: none;
 }
-/* Tab bar */
+@keyframes fadeIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
 #tabBar {
-  display: flex; background: #2a2520; border-bottom: 1px solid #4a4032;
+  display: flex; background: var(--bg-deep); border-bottom: 1px solid var(--glass-border);
   padding: 0 12px; flex-shrink: 0;
 }
 .tab {
-  padding: 8px 20px; font-size: 13px; color: #908070; cursor: pointer;
-  border-bottom: 2px solid transparent; text-decoration: none;
+  padding: 8px 20px; font-size: 13px; color: var(--text-faint); cursor: pointer;
+  border-bottom: 2px solid transparent; text-decoration: none; transition: var(--transition);
 }
-.tab:hover { color: #d4c9b0; }
-.tab.active { color: #e8d8c0; border-bottom-color: #c09860; }
+.tab:hover { color: var(--text-primary); }
+.tab.active { color: var(--text-primary); border-bottom-color: var(--accent-gold); }
 
 #toolbar {
-  background: #3a3228; padding: 10px 20px;
+  background: var(--glass-bg); padding: 10px 20px;
   display: flex; align-items: center; gap: 12px;
-  border-bottom: 1px solid #4a4032; flex-shrink: 0; flex-wrap: wrap;
+  border-bottom: 1px solid var(--glass-border); flex-shrink: 0; flex-wrap: wrap;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-#toolbar label { font-size: 13px; color: #b0a088; }
+#toolbar label { font-size: 13px; color: var(--text-muted); }
 #searchInput {
   padding: 6px 12px; font-size: 15px; width: 180px;
-  background: #4a4032; border: 1px solid #5a5042; color: #e8d8c0;
-  border-radius: 4px; outline: none;
+  background: rgba(255,255,255,0.08); border: none; color: var(--text-primary);
+  border-radius: var(--radius-sm); outline: none; font-family: var(--font-ui); transition: var(--transition);
 }
-#searchInput:focus { border-color: #c09860; }
+#searchInput:focus { box-shadow: 0 0 10px var(--accent-blue-glow); background: rgba(255,255,255,0.12); }
 select {
   padding: 5px 8px; font-size: 13px;
-  background: #4a4032; border: 1px solid #5a5042; color: #d4c9b0;
-  border-radius: 4px; cursor: pointer; outline: none;
+  background: rgba(255,255,255,0.08); border: none; color: var(--text-primary);
+  border-radius: var(--radius-sm); cursor: pointer; outline: none; font-family: var(--font-ui); transition: var(--transition);
 }
+select:focus { box-shadow: 0 0 10px var(--accent-blue-glow); }
+select option { background: var(--bg-surface); color: var(--text-primary); }
 .btn {
   padding: 6px 14px; font-size: 13px;
-  background: #5a4a35; border: 1px solid #6a5a45; color: #d4c9b0;
-  border-radius: 4px; cursor: pointer;
+  background: rgba(255,255,255,0.08); border: none; color: var(--text-primary);
+  border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font-ui); transition: var(--transition);
 }
-.btn:hover { background: #6a5a45; }
-.btn.active { background: #8a6a40; border-color: #c09860; }
-#main { display: flex; flex: 1; overflow: hidden; }
+.btn:hover { background: rgba(255,255,255,0.14); box-shadow: 0 0 12px rgba(255,255,255,0.08); transform: translateY(-1px); }
+.btn.active { background: rgba(192,152,96,0.2); color: var(--accent-gold); }
+#main { display: flex; flex: 1; overflow: hidden; animation: fadeIn 0.5s ease 0.1s both; }
 #sidebar {
-  width: 240px; min-width: 240px; background: #322a20;
-  border-right: 1px solid #4a4032; display: flex; flex-direction: column;
+  width: 240px; min-width: 240px; background: var(--glass-bg);
+  border-right: 1px solid var(--glass-border); display: flex; flex-direction: column;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-#sidebarHeader { padding: 10px 14px; font-size: 13px; color: #a09880; border-bottom: 1px solid #4a4032; }
+#sidebarHeader { padding: 10px 14px; font-size: 13px; color: var(--text-muted); border-bottom: 1px solid var(--glass-border); }
 #charList { flex: 1; overflow-y: auto; padding: 6px; }
-.char-item { padding: 8px 12px; cursor: pointer; border-radius: 4px; display: flex; justify-content: space-between; margin-bottom: 2px; }
-.char-item:hover { background: #4a3a28; }
-.char-item.active { background: #6a5a35; }
+.char-item { padding: 8px 12px; cursor: pointer; border-radius: var(--radius-sm); display: flex; justify-content: space-between; margin-bottom: 2px; transition: var(--transition); }
+.char-item:hover { background: rgba(255,255,255,0.06); }
+.char-item.active { background: rgba(74,124,247,0.12); }
 .char-item .char-text { font-size: 20px; }
-.char-item .char-count { font-size: 12px; color: #a09880; }
+.char-item .char-count { font-size: 12px; color: var(--text-faint); }
 #viewer {
   flex: 1; display: flex; flex-direction: column; align-items: center;
   overflow-y: auto; padding: 16px;
 }
 #canvasContainer {
-  position: relative; border-radius: 6px; overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4); flex-shrink: 0;
+  position: relative; border-radius: var(--radius-md); overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5); flex-shrink: 0; border: 1px solid var(--glass-border);
 }
 #controls {
   margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
   flex-shrink: 0;
 }
-#controls .info { font-size: 12px; color: #908070; margin: 0 8px; }
+#controls .info { font-size: 12px; color: var(--text-faint); margin: 0 8px; }
 #variantStrip {
   margin-top: 10px; display: flex; gap: 6px;
-  padding: 8px 12px; background: #322a20; border-radius: 6px;
-  max-width: 520px; flex-wrap: wrap; justify-content: center; align-content: flex-start;
+  padding: 8px 12px; background: var(--glass-bg); border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border); max-width: 520px; flex-wrap: wrap; justify-content: center; align-content: flex-start;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
 .variant-thumb {
   width: 44px; height: 56px; object-fit: contain; cursor: pointer;
-  border: 2px solid transparent; border-radius: 3px;
-  background: #4a3a28; display: inline-block;
+  border: 2px solid transparent; border-radius: 4px;
+  background: var(--bg-surface); display: inline-block; transition: var(--transition);
 }
-.variant-thumb:hover { border-color: #a08060; }
-.variant-thumb.active { border-color: #c09860; }
+.variant-thumb:hover { border-color: var(--accent-blue); box-shadow: 0 0 8px var(--accent-blue-glow); }
+.variant-thumb.active { border-color: var(--accent-gold); }
 #loading {
   display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5); z-index: 999;
-  align-items: center; justify-content: center; font-size: 18px; color: #e8d8c0;
+  background: rgba(0,0,0,0.6); z-index: 999; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  align-items: center; justify-content: center; font-size: 18px; color: var(--text-primary);
 }
 #loading.show { display: flex; }
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #2a2520; }
-::-webkit-scrollbar-thumb { background: #5a4a35; border-radius: 3px; }
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}
 </style>
 </head>
 <body>
@@ -103,6 +160,8 @@ select {
 <div id="tabBar">
   <a href="/" class="tab active">字库浏览</a>
   <a href="/compose" class="tab">集字排版</a>
+  <span style="flex:1"></span>
+  <button class="tab" id="themeBtn" onclick="toggleTheme()" title="切换浅色/深色模式" style="font-size:18px;line-height:1;padding:8px 12px;background:none;border:none;outline:none;cursor:pointer">🌙</button>
 </div>
 <div id="toolbar">
   <label>🔍</label>
@@ -119,13 +178,13 @@ select {
     <option value="tianzi">田字格</option>
   </select>
   <span style="flex:1"></span>
-  <span id="navInfo" style="font-size:12px;color:#908070;"></span>
+  <span id="navInfo" style="font-size:12px;color:var(--text-faint);"></span>
 </div>
 
 <div id="main">
   <div id="sidebar">
     <div id="sidebarHeader">字符列表</div>
-    <div id="charList"><div style="padding:20px;text-align:center;color:#706050;font-size:14px;">加载中...</div></div>
+    <div id="charList"><div style="padding:20px;text-align:center;color:var(--text-faint);">加载中...</div></div>
   </div>
   <div id="viewer">
     <div id="canvasContainer">
@@ -372,7 +431,7 @@ function updateVariantStrip(variants, activeIdx) {
   var strip = document.getElementById('variantStrip');
   if (!strip) { console.error('variantStrip not found'); return; }
   strip.innerHTML = '';
-  if (!variants || variants.length === 0) { strip.innerHTML = '<span style="color:#706050;font-size:12px;">无变体</span>'; return; }
+  if (!variants || variants.length === 0) { strip.innerHTML = '<span style="color:var(--text-faint);font-size:12px;">无变体</span>'; return; }
   var count = 0;
   variants.forEach(function(v, i) {
     var img = document.createElement('img');
@@ -403,7 +462,7 @@ function doSearch(q) {
   fetch(url).then(function(r) { return r.json(); }).then(function(data) {
     var list = document.getElementById('charList');
     if (!data || data.length === 0) {
-      list.innerHTML = '<div style="padding:20px;text-align:center;color:#706050;">未找到匹配字符</div>';
+      list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-faint);">未找到匹配字符</div>';
       return;
     }
     list.innerHTML = '';
@@ -502,6 +561,17 @@ document.getElementById('searchInput').focus();
 
 var initQ = new URLSearchParams(window.location.search).get('q');
 if (initQ) { document.getElementById('searchInput').value = initQ; doSearch(initQ); }
+
+// ---- Theme Toggle ----
+function toggleTheme() {
+  var b = document.body;
+  var isLight = b.classList.toggle('light');
+  document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙';
+  try { localStorage.setItem('ink_theme', isLight ? 'light' : 'dark'); } catch(e) {}
+}
+(function(){ var t = 'dark'; try { t = localStorage.getItem('ink_theme') || 'dark'; } catch(e) {}
+  if (t === 'light') { document.body.classList.add('light'); document.getElementById('themeBtn').textContent = '☀️'; }
+})();
 </script>
 </body>
 </html>

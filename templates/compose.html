@@ -4,88 +4,118 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>集字排版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=ZCOOL+QingKe+HuangYou&family=JetBrains+Mono&display=swap" rel="stylesheet">
 <style>
+:root {
+  --bg-deep: #0e1420;
+  --bg-surface: #141a28;
+  --glass-bg: rgba(255,255,255,0.04);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-hover: rgba(255,255,255,0.12);
+  --text-primary: #e8e0d4;
+  --text-muted: #908078;
+  --text-faint: #605850;
+  --accent-red: #e8453c;
+  --accent-red-glow: rgba(232,69,60,0.25);
+  --accent-blue: #4a7cf7;
+  --accent-blue-glow: rgba(74,124,247,0.2);
+  --accent-gold: #c09860;
+  --accent-green: #34d399;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --font-ui: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-display: 'ZCOOL QingKe HuangYou', 'KaiTi', serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+  --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+body.light{
+  --bg-deep: #f2e8c8;
+  --bg-surface: #faf4e0;
+  --glass-bg: rgba(255,252,240,0.8);
+  --glass-border: rgba(0,0,0,0.07);
+  --glass-hover: rgba(0,0,0,0.12);
+  --text-primary: #2c2416;
+  --text-muted: #6b6050;
+  --text-faint: #9a9080;
+  --accent-red: #d13b30;
+  --accent-red-glow: rgba(209,59,48,0.2);
+  --accent-blue: #3b6fe0;
+  --accent-blue-glow: rgba(59,111,224,0.18);
+  --input-bg: rgba(0,0,0,0.04);
+  --input-border: rgba(0,0,0,0.12);
+}
+body.light select, body.light input[type=text], body.light input[type=number], body.light textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+}
+body.light #paramsBar select, body.light #paramsBar input[type=number] {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+}
+body.light select:focus, body.light input[type=text]:focus, body.light input[type=number]:focus, body.light textarea:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 8px var(--accent-blue-glow);
+}
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
-  font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
-  background: #2a2520; color: #d4c9b0;
+  font-family: var(--font-ui);
+  background: var(--bg-deep);
+  color: var(--text-primary);
   height: 100vh; display: flex; flex-direction: column;
   user-select: none;
 }
-/* Tab bar */
+@keyframes fadeIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
 #tabBar {
-  display: flex; background: #2a2520; border-bottom: 1px solid #4a4032;
+  display: flex; background: var(--bg-deep); border-bottom: 1px solid var(--glass-border);
   padding: 0 12px; flex-shrink: 0;
 }
 .tab {
-  padding: 8px 20px; font-size: 13px; color: #908070; cursor: pointer;
-  border-bottom: 2px solid transparent; text-decoration: none;
+  padding: 8px 20px; font-size: 13px; color: var(--text-faint); cursor: pointer;
+  border-bottom: 2px solid transparent; text-decoration: none; transition: var(--transition);
 }
-.tab:hover { color: #d4c9b0; }
-.tab.active { color: #e8d8c0; border-bottom-color: #c09860; }
+.tab:hover { color: var(--text-primary); }
+.tab.active { color: var(--text-primary); border-bottom-color: var(--accent-gold); }
 
-#toolbar {
-  background: #3a3228; padding: 10px 20px;
-  display: flex; align-items: center; gap: 10px;
-  border-bottom: 1px solid #4a4032; flex-shrink: 0; flex-wrap: wrap;
-}
-#toolbar label { font-size: 13px; color: #b0a088; white-space: nowrap; }
-#textInput {
-  padding: 8px 12px; font-size: 15px; width: 360px; min-height: 36px;
-  background: #4a4032; border: 1px solid #5a5042; color: #e8d8c0;
-  border-radius: 4px; outline: none; resize: vertical; font-family: inherit; line-height: 1.5;
-}
-#textInput:focus { border-color: #c09860; }
-select, input[type=number] {
-  padding: 5px 8px; font-size: 13px;
-  background: #4a4032; border: 1px solid #5a5042; color: #d4c9b0;
-  border-radius: 4px; cursor: pointer; outline: none;
-}
-input[type=number] { width: 55px; }
-.btn {
-  padding: 6px 14px; font-size: 13px;
-  background: #5a4a35; border: 1px solid #6a5a45; color: #d4c9b0;
-  border-radius: 4px; cursor: pointer;
-}
-.btn:hover { background: #6a5a45; }
-.btn.primary { background: #8a6a40; border-color: #c09860; }
-.btn.primary:hover { background: #9a7a50; }
-#main { display: flex; flex: 1; overflow: hidden; }
+#main { display: flex; flex: 1; overflow: hidden; animation: fadeIn 0.5s ease 0.1s both; }
 #sidebar {
-  width: 260px; min-width: 260px; background: #322a20;
-  border-right: 1px solid #4a4032; display: flex; flex-direction: column;
-  overflow-y: auto;
+  width: 260px; min-width: 260px; background: var(--glass-bg);
+  border-right: 1px solid var(--glass-border); display: flex; flex-direction: column;
+  overflow-y: auto; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
-#sidebar h3 { padding: 10px 14px; font-size: 13px; color: #a09880; border-bottom: 1px solid #4a4032; }
+#sidebar h3 { padding: 10px 14px; font-size: 13px; color: var(--text-muted); border-bottom: 1px solid var(--glass-border); }
 #charSelectList { flex: 1; padding: 6px; }
 .char-sel-item {
-  padding: 6px 10px; cursor: pointer; border-radius: 4px;
-  display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;
+  padding: 6px 10px; cursor: pointer; border-radius: var(--radius-sm);
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; transition: var(--transition);
 }
-.char-sel-item:hover { background: #4a3a28; }
+.char-sel-item:hover { background: rgba(255,255,255,0.06); }
+.char-sel-item > div:first-child { min-width: 60px; white-space: nowrap; flex-shrink: 0; }
 .char-sel-item .char-text { font-size: 18px; font-weight: bold; }
-.char-sel-item .char-pos { font-size: 11px; color: #706050; }
+.char-sel-item .char-pos { font-size: 11px; color: var(--text-faint); }
 .var-thumb {
   width: 36px; height: 44px; object-fit: contain; cursor: pointer;
-  border: 2px solid transparent; border-radius: 2px; background: #4a3a28;
-  margin: 1px;
+  border: 2px solid transparent; border-radius: 4px; background: var(--bg-surface);
+  margin: 1px; transition: var(--transition);
 }
-.var-thumb:hover { border-color: #a08060; }
-.var-thumb.active { border-color: #c09860; }
+.var-thumb:hover { border-color: var(--accent-blue); box-shadow: 0 0 8px var(--accent-blue-glow); }
+.var-thumb.active { border-color: var(--accent-gold); }
 #previewArea {
   flex: 1; display: flex; align-items: flex-start; justify-content: flex-start;
   overflow: auto; padding: 20px; position: relative;
 }
 #previewWrap {
   position: relative; display: inline-block;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5); border-radius: 4px;
-  line-height: 0; margin: 0 auto; min-width: 0;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5); border-radius: var(--radius-sm);
+  line-height: 0; margin: 0 auto; min-width: 0; border: 1px solid var(--glass-border);
 }
 #previewImg { display: block; max-width: none; }
 #loading {
   display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5); z-index: 999;
-  align-items: center; justify-content: center; font-size: 18px;
+  background: rgba(0,0,0,0.6); z-index: 999; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  align-items: center; justify-content: center; font-size: 18px; color: var(--text-primary);
 }
 #loading.show { display: flex; }
 
@@ -201,12 +231,41 @@ input[type=number] { width: 55px; }
     radial-gradient(3px 3px at 67% 8%, rgba(210,170,40,0.55) 50%, transparent 50%),
     radial-gradient(2px 2px at 43% 78%, rgba(220,180,45,0.40) 50%, transparent 50%);
 }
+/* Params bar styling */
+#paramsBar label, #paramsBar select, #paramsBar input { font-family: var(--font-ui); }
+#paramsBar label { color: var(--text-muted); font-size: 13px; white-space: nowrap; }
+#paramsBar select, #paramsBar input[type=number] {
+  padding: 5px 8px; font-size: 13px;
+  background: rgba(255,255,255,0.08); border: none; color: var(--text-primary);
+  border-radius: var(--radius-sm); cursor: pointer; outline: none; transition: var(--transition);
+}
+#paramsBar input[type=number]:focus, #paramsBar select:focus { box-shadow: 0 0 10px var(--accent-blue-glow); }
+#paramsBar input[type=number] { width: 55px; }
+#paramsBar select option { background: var(--bg-surface); color: var(--text-primary); }
+.btn {
+  padding: 6px 14px; font-size: 13px;
+  background: rgba(255,255,255,0.08); border: none; color: var(--text-primary);
+  border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font-ui); transition: var(--transition);
+}
+.btn:hover { background: rgba(255,255,255,0.14); box-shadow: 0 0 12px rgba(255,255,255,0.08); transform: translateY(-1px); }
+.btn-primary { background: rgba(74,124,247,0.15); color: var(--accent-blue); }
+.btn-primary:hover { background: rgba(74,124,247,0.25); box-shadow: 0 0 14px var(--accent-blue-glow); }
+.btn-success { background: rgba(52,211,153,0.12); color: var(--accent-green); border: none; }
+.btn-success:hover { background: rgba(52,211,153,0.2); box-shadow: 0 0 14px rgba(52,211,153,0.2); }
+textarea { border: none; }
+#textInput:focus { box-shadow: 0 0 12px var(--accent-blue-glow); background: rgba(255,255,255,0.12); }
+/* Variant thumbnails consistent left alignment */
+.char-sel-item > div:last-child { display: flex; flex-wrap: wrap; gap: 2px; flex: 1; justify-content: flex-start; }
 /* Zoom controls */
 #zoomInfo {
-  position: absolute; bottom: 8px; right: 12px;
-  font-size: 11px; color: #908070; background: rgba(42,37,32,0.7);
-  padding: 2px 8px; border-radius: 3px; pointer-events: none;
+  font-size: 11px; color: var(--text-faint); background: var(--glass-bg);
+  padding: 2px 8px; border-radius: var(--radius-sm); border: 1px solid var(--glass-border);
+  min-width: 44px; text-align: center;
 }
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}
 </style>
 </head>
 <body>
@@ -214,24 +273,26 @@ input[type=number] { width: 55px; }
 <div id="tabBar">
   <a href="/" class="tab">字库浏览</a>
   <a href="/compose" class="tab active">集字排版</a>
+  <span style="flex:1"></span>
+  <button class="tab" id="themeBtn" onclick="toggleTheme()" title="切换浅色/深色模式" style="font-size:18px;line-height:1;padding:8px 12px;background:none;border:none;outline:none;cursor:pointer">🌙</button>
 </div>
 
 <div id="main">
   <div id="sidebar">
-    <div id="inputSection" style="padding:10px 12px; border-bottom:1px solid #4a4032;flex-shrink:0;">
-      <label style="font-size:12px; color:#b0a088; display:block; margin-bottom:6px;">✍ 输入文字</label>
-      <textarea id="textInput" placeholder="Shift+Enter 生成，Enter 换行..." rows="3" style="width:100%; padding:8px 10px; font-size:14px; background:#4a4032; border:1px solid #5a5042; color:#e8d8c0; border-radius:4px; outline:none; resize:vertical; font-family:inherit; line-height:1.5; min-height:60px;">梦回红楼</textarea>
+    <div id="inputSection" style="padding:10px 12px; border-bottom:1px solid var(--glass-border);flex-shrink:0;">
+      <label style="font-size:12px; color:var(--text-muted); display:block; margin-bottom:6px;">✍ 输入文字</label>
+      <textarea id="textInput" placeholder="Shift+Enter 生成，Enter 换行..." rows="3" style="width:100%; padding:8px 10px; font-size:14px; background:rgba(255,255,255,0.08); color:var(--text-primary); border-radius:var(--radius-sm); outline:none; resize:vertical; font-family:var(--font-ui); line-height:1.5; min-height:60px; transition:var(--transition);">梦回红楼</textarea>
       <div style="margin-top:8px; display:flex; gap:6px;">
-        <button class="btn primary" onclick="doSearch()" style="flex:1;">生成</button>
+        <button class="btn btn-primary" onclick="doSearch()" style="flex:1;">生成</button>
       </div>
     </div>
-    <h3>选字列表 <span id="selectedCharName" style="font-weight:normal;font-size:12px;color:#c09860;"></span></h3>
-    <div id="charSelectList"><div style="padding:20px;text-align:center;color:#706050;font-size:14px;">输入文字后生成</div></div>
+    <h3>选字列表 <span id="selectedCharName" style="font-weight:normal;font-size:12px;color:var(--accent-gold);"></span></h3>
+    <div id="charSelectList"><div style="padding:20px;text-align:center;color:var(--text-faint);font-size:14px;">输入文字后生成</div></div>
     </div>
     <div id="previewArea">
       <div id="previewWrap">
         <img id="previewImg" style="display:none; cursor:crosshair;">
-        <div id="noPreview" style="padding:40px;color:#908070;text-align:center;">
+        <div id="noPreview" style="padding:40px;color:var(--text-faint);text-align:center;">
           输入文字，设置参数，点击「生成」
         </div>
       </div>
@@ -242,8 +303,9 @@ input[type=number] { width: 55px; }
 <div id="loading" class="show" style="display:none;">渲染中...</div>
 
 <div id="paramsBar" style="
-  background:#3a3228; padding:8px 20px; display:flex; align-items:center; gap:12px;
-  border-top:1px solid #4a4032; flex-shrink:0; flex-wrap:wrap;
+  background:var(--glass-bg); padding:8px 20px; display:flex; align-items:center; gap:12px;
+  border-top:1px solid var(--glass-border); flex-shrink:0; flex-wrap:wrap;
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
 ">
   <label id="colsLabel">列字数</label>
   <input type="number" id="colsInput" value="14" min="1" max="50">
@@ -275,14 +337,14 @@ input[type=number] { width: 55px; }
     <option value="gold">金色</option>
     <option value="red">红色</option>
   </select>
-  <button class="btn primary" onclick="doRender()">渲染</button>
-  <button class="btn" onclick="exportPNG()">导出 PNG</button>
-  <button class="btn" onclick="exportPDF()">导出 PDF</button>
+  <button class="btn btn-primary" onclick="doRender()">渲染</button>
+  <button class="btn btn-success" onclick="exportPNG()">导出 PNG</button>
+  <button class="btn btn-success" onclick="exportPDF()">导出 PDF</button>
   <span style="flex:1"></span>
-  <label style="font-size:11px;color:#908070;">缩放</label>
+  <label style="font-size:11px;color:var(--text-faint);">缩放</label>
   <input type="range" id="zoomSlider" min="0.1" max="5" step="0.01" value="1.0"
-    style="width:100px; accent-color:#c09860; cursor:pointer;">
-  <span id="zoomInfo" style="font-size:12px;color:#908070;min-width:44px;text-align:center;">100%</span>
+    style="width:100px; accent-color:var(--accent-blue); cursor:pointer;">
+  <span id="zoomInfo" style="font-size:12px;color:var(--text-faint);min-width:44px;text-align:center;">100%</span>
 </div>
 
 <script>
@@ -378,7 +440,7 @@ function doSearch() {
 
 function renderCharList(selectedTextIdx) {
   var list = document.getElementById('charSelectList');
-  if (!charData || charData.length === 0) { list.innerHTML = '<div style="padding:20px;text-align:center;color:#706050;">未找到</div>'; return; }
+  if (!charData || charData.length === 0) { list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-faint);">未找到</div>'; return; }
   var html = '';
   charData.forEach(function(cd, idx) {
     var ch = cd.char;
@@ -386,7 +448,7 @@ function renderCharList(selectedTextIdx) {
     var selIdx = cd.selectedIdx;
     var textIdx = idx; // simplified: dataIdx matches text position
     var isHighlighted = (selectedTextIdx === idx);
-    html += '<div class="char-sel-item' + (isHighlighted ? '" style="background:#5a4a35;"' : '"') + '>';
+    html += '<div class="char-sel-item' + (isHighlighted ? '" style="background:rgba(74,124,247,0.12);"' : '"') + '>';
     html += '<div><span class="char-text">' + ch + '</span> <span class="char-pos">(' + vcount + '个)</span></div>';
     html += '<div>';
     if (vcount > 0) {
@@ -396,7 +458,7 @@ function renderCharList(selectedTextIdx) {
         html += '<img class="var-thumb' + isActive + '" src="/api/image/' + v.page_dir + '/' + encodeURIComponent(v.filename) + '?mode=binary&invert=0&size=60" title="第' + v.page + '页" onclick="event.stopPropagation(); selectVariant(' + idx + ',' + vi + ')">';
       });
     } else {
-      html += '<span style="color:#706050;">无</span>';
+      html += '<span style="color:var(--text-faint);">无</span>';
     }
     html += '</div></div>';
   });
@@ -684,6 +746,17 @@ document.getElementById('zoomSlider').value = zoomLevel;
 document.getElementById('zoomInfo').textContent = '100%';
 updateColsLabel();
 doSearch();
+
+// ---- Theme Toggle ----
+function toggleTheme() {
+  var b = document.body;
+  var isLight = b.classList.toggle('light');
+  document.getElementById('themeBtn').textContent = isLight ? '☀️' : '🌙';
+  try { localStorage.setItem('ink_theme', isLight ? 'light' : 'dark'); } catch(e) {}
+}
+(function(){ var t = 'dark'; try { t = localStorage.getItem('ink_theme') || 'dark'; } catch(e) {}
+  if (t === 'light') { document.body.classList.add('light'); document.getElementById('themeBtn').textContent = '☀️'; }
+})();
 </script>
 </body>
 </html>
