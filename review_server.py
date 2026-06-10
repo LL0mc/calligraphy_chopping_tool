@@ -105,8 +105,8 @@ HTML = r"""<!DOCTYPE html>
 <title>字帖校对 - 第_PAGE_页</title>
 <style>
 :root {
-  --bg-deep: #0a0a12;
-  --bg-surface: #12121e;
+  --bg-deep: #0e1420;
+  --bg-surface: #141a28;
   --glass-bg: rgba(255,255,255,0.04);
   --glass-border: rgba(255,255,255,0.08);
   --glass-hover: rgba(255,255,255,0.12);
@@ -140,12 +140,27 @@ body.light{
   --accent-red-glow: rgba(209,59,48,0.2);
   --accent-blue: #3b6fe0;
   --accent-blue-glow: rgba(59,111,224,0.18);
+  --input-bg: rgba(0,0,0,0.04);
+  --input-border: rgba(0,0,0,0.12);
 }
+body.light .fi, body.light input[type=number], body.light select, body.light textarea {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border) !important;
+}
+body.light .fi:focus, body.light input[type=number]:focus, body.light select:focus, body.light textarea:focus {
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 8px var(--accent-blue-glow);
+}
+body.light select option { background: var(--bg-surface); color: var(--text-primary); }
+body.light .btn { background: rgba(0,0,0,0.06); }
+body.light .btn:hover { background: rgba(0,0,0,0.1); }
+body.light .btn-primary { background: rgba(59,111,224,0.1); }
+body.light .btn-danger { background: rgba(209,59,48,0.1); }
+body.light .btn-success { background: rgba(52,211,153,0.1); }
 *{margin:0;padding:0;box-sizing:border-box}
 body{
   font-family:var(--font-ui);
   background:var(--bg-deep);
-  background-image:radial-gradient(ellipse at 50% 0, rgba(74,124,247,0.08), transparent 70%);
   color:var(--text-primary);
   padding:16px;
   min-height:100vh;
@@ -160,14 +175,14 @@ body{
 .toolbar span{color:var(--text-muted);font-size:13px}
 .btn{
   padding:6px 14px;border-radius:var(--radius-sm);border:none;
-  background:rgba(255,255,255,0.06);
+  background:rgba(255,255,255,0.08);
   color:var(--text-primary);cursor:pointer;
   font-family:var(--font-ui);font-size:13px;
   transition:var(--transition);
 }
 .btn:hover{
-  background:rgba(255,255,255,0.12);
-  box-shadow:0 0 12px rgba(255,255,255,0.08);
+  background:rgba(255,255,255,0.13);
+  box-shadow:0 0 10px rgba(255,255,255,0.06);
   transform:translateY(-1px);
 }
 .btn-primary{background:rgba(74,124,247,0.15);color:var(--accent-blue)}
@@ -210,8 +225,9 @@ body{
 .tw{overflow-y:auto;max-height:35vh;padding:0}
 table{width:100%;border-collapse:collapse;font-size:13px;font-family:var(--font-ui)}
 th{
-  background:var(--bg-deep);padding:6px 8px;text-align:left;
+  background:var(--bg-surface);padding:6px 8px;text-align:left;
   position:sticky;top:0;z-index:2;color:var(--text-muted);font-weight:500;font-size:12px;
+  border-bottom:1px solid var(--glass-border);
 }
 td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:var(--transition)}
 tr{transition:var(--transition)}
@@ -312,6 +328,8 @@ tr.sel td:first-child::before{
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}
+body.light ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.12)}
+body.light ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.2)}
 </style>
 </head>
 <body>

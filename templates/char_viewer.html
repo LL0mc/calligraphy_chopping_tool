@@ -84,12 +84,6 @@ body {
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
 }
 #toolbar label { font-size: 13px; color: var(--text-muted); }
-#searchInput {
-  padding: 6px 12px; font-size: 15px; width: 180px;
-  background: rgba(255,255,255,0.08); border: none; color: var(--text-primary);
-  border-radius: var(--radius-sm); outline: none; font-family: var(--font-ui); transition: var(--transition);
-}
-#searchInput:focus { box-shadow: 0 0 10px var(--accent-blue-glow); background: rgba(255,255,255,0.12); }
 select {
   padding: 5px 8px; font-size: 13px;
   background: rgba(255,255,255,0.08); border: none; color: var(--text-primary);
@@ -102,8 +96,17 @@ select option { background: var(--bg-surface); color: var(--text-primary); }
   background: rgba(255,255,255,0.08); border: none; color: var(--text-primary);
   border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font-ui); transition: var(--transition);
 }
-.btn:hover { background: rgba(255,255,255,0.14); box-shadow: 0 0 12px rgba(255,255,255,0.08); transform: translateY(-1px); }
+.btn:hover { background: rgba(255,255,255,0.13); box-shadow: 0 0 10px rgba(255,255,255,0.06); transform: translateY(-1px); }
+body.light .btn { background: rgba(0,0,0,0.06); }
+body.light .btn:hover { background: rgba(0,0,0,0.1); }
 .btn.active { background: rgba(192,152,96,0.2); color: var(--accent-gold); }
+#searchInput {
+  padding: 6px 16px; font-size: 15px; width: 200px;
+  background: rgba(255,255,255,0.06); border: none; color: var(--text-primary);
+  border-radius: 20px; outline: none; font-family: var(--font-ui); transition: var(--transition);
+}
+#searchInput:focus { box-shadow: 0 0 10px var(--accent-blue-glow); background: rgba(255,255,255,0.1); }
+body.light #searchInput { background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.1); }
 #main { display: flex; flex: 1; overflow: hidden; animation: fadeIn 0.5s ease 0.1s both; }
 #sidebar {
   width: 240px; min-width: 240px; background: var(--glass-bg);
@@ -153,6 +156,8 @@ select option { background: var(--bg-surface); color: var(--text-primary); }
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
 ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}
+body.light ::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.12)}
+body.light ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.2)}
 </style>
 </head>
 <body>
