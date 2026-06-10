@@ -996,7 +996,7 @@ def save_char():
         orig_idx = clean[idx].get('orig_idx', idx)
         entry = None
         for c in corr:
-            if c.get('orig_idx') == orig_idx and not c.get('deleted') and not c.get('added'):
+            if c.get('orig_idx') == orig_idx and not c.get('deleted'):
                 entry = c
                 break
         if entry is None:
