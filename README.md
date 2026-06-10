@@ -51,20 +51,6 @@ flowchart TD
 
 </details>
 
-## Digital Ink 前端重构 (v19.5)
-
-本项目从原生的深色主题全面升级为 **Digital Ink** 视觉语言，覆盖校对服务器、字符查看器和集字排版三个前端页面：
-
-- **CSS 变量系统** — `:root` 全局 tokens（`--bg-deep`、`--glass-*`、`--accent-*`、`--font-*`），统一维护
-- **双主题切换** — 深色 `#0e1420`（蓝灰色调）/ 浅色 `#f2e8c8`（暖黄），localStorage 持久化，tab 栏一键切换
-- **玻璃拟态** — 面板 `backdrop-filter: blur(12px)` 半透明毛玻璃效果 + 微光边框
-- **蓝色强调** — `#4a7cf7` 聚焦辉光，按钮/输入框焦点发光反馈
-- **无框设计** — 按钮和输入框去掉硬边框，纯半透明底色悬浮
-- **排版升级** — Google Fonts（Noto Sans SC、ZCOOL QingKe HuangYou、JetBrains Mono）
-- **集字排版** — 统一 `.btn-primary`（蓝辉光）/ `.btn-success`（绿辉光）按钮体系，变体缩略图 flex-wrap 左对齐排列
-
-> 本项目由 **opencode** + **DeepSeek V4** 协同完成开发。
-
 ## 三大 Web 应用
 
 ### 1. 校对服务器 (review_server) — Port 5000
@@ -309,3 +295,7 @@ python char_viewer.py
 - `OBSIDIAN_VAULT`：Obsidian 仓库路径
 - `DPI_SCALE`：PDF 渲染倍率
 - `BINARY_THRESHOLD`：二值化阈值
+
+---
+
+*本项目由 **OpenCode** + **DeepSeek V4 Flash Free** 协同完成开发。*

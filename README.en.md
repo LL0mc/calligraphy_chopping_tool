@@ -47,20 +47,6 @@ flowchart TD
 
 </details>
 
-## Digital Ink Frontend Redesign (v19.5)
-
-The project's frontend has been fully upgraded with a **Digital Ink** visual language across all three web pages:
-
-- **CSS variable system** — `:root` global tokens (`--bg-deep`, `--glass-*`, `--accent-*`, `--font-*`)
-- **Dual theme** — Dark `#0e1420` (blue-charcoal) / Light `#f2e8c8` (warm yellow), persisted via localStorage, toggled from tab bar
-- **Glass morphism** — Panels with `backdrop-filter: blur(12px)` and subtle glowing borders
-- **Blue accent** — `#4a7cf7` focus glow on buttons and inputs
-- **Borderless design** — Buttons and inputs use translucent backgrounds instead of hard borders
-- **Typography** — Google Fonts: Noto Sans SC, ZCOOL QingKe HuangYou, JetBrains Mono
-- **Compose** — Unified `.btn-primary` (blue glow) / `.btn-success` (green glow) buttons, flex-wrap variant thumbnails
-
-> Built with **opencode** + **DeepSeek V4**.
-
 ## Three Web Apps
 
 ### 1. Review Server (review_server) — Port 5000
@@ -298,3 +284,7 @@ See `config.py`. Key parameters:
 - `OBSIDIAN_VAULT`: Obsidian vault path
 - `DPI_SCALE`: PDF render scale
 - `BINARY_THRESHOLD`: Binarization threshold
+
+---
+
+*Built with **OpenCode** + **DeepSeek V4 Flash Free**.*

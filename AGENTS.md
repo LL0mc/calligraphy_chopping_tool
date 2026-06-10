@@ -56,6 +56,19 @@
   - Export PNG: client-side download from cached blob
   - Export PDF: server endpoint via fpdf2, full-resolution embed
 
+## Digital Ink Frontend Redesign (v19.5)
+
+全面升级三个前端页面（review_server、char_viewer、compose）的视觉风格：
+
+- **CSS 变量系统** — `:root` 全局 tokens（`--bg-deep`、`--glass-*`、`--accent-*`、`--font-*`），统一维护
+- **双主题切换** — 深色 `#0e1420`（蓝灰色调）/ 浅色 `#f2e8c8`（暖黄），localStorage 持久化，tab 栏一键切换
+- **玻璃拟态** — 面板 `backdrop-filter: blur(12px)` 半透明毛玻璃效果 + 微光边框
+- **蓝色强调** — `#4a7cf7` 聚焦辉光，按钮/输入框焦点发光反馈
+- **无框设计** — 按钮和输入框去掉硬边框，纯半透明底色悬浮
+- **排版升级** — Google Fonts（Noto Sans SC、ZCOOL QingKe HuangYou、JetBrains Mono）
+- **集字排版** — 统一 `.btn-primary`（蓝辉光）/ `.btn-success`（绿辉光）按钮体系，变体缩略图 flex-wrap 左对齐排列
+- **新增框保存 bug 修复** — `save_char()` 中 `and not c.get('added')` 导致重复 correction 记录，切换页面后位置/文字丢失
+
 ## Known Issues (unfixed)
 - **巷** (p30, left boundary): left stroke 39px outside refine box — inter-char gap > merge_radius from OCR center
 - **Feibai** (broken strokes): broken-stroke gaps connect to outer whitespace, excluding candidate components
