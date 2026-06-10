@@ -243,12 +243,17 @@ tr.sel td:first-child::before{
 .ep .fields .label-text{color:var(--text-muted);font-size:13px}
 .ep .fields .label-row .ocr-info{color:var(--text-faint);font-size:12px;margin-left:8px}
 .ep .fields .label-row input{
-  padding:5px 10px;border-radius:var(--radius-sm);border:1px solid var(--glass-border);
-  background:var(--glass-bg);color:var(--text-primary);
+  padding:5px 10px 5px 14px;border-radius:var(--radius-sm);
+  border:1px solid var(--glass-border);border-left:3px solid var(--accent-blue);
+  background:rgba(255,255,255,0.07);color:var(--text-primary);
   font-family:var(--font-mono);font-size:14px;font-weight:500;
   transition:var(--transition);outline:none;
+  box-shadow:0 0 12px rgba(0,0,0,0.15);
 }
-.ep .fields .label-row input:focus{border-color:var(--accent-blue);box-shadow:0 0 10px var(--accent-blue-glow)}
+.ep .fields .label-row input:focus{
+  border-color:var(--accent-blue);border-left-color:var(--accent-blue);
+  box-shadow:0 0 14px var(--accent-blue-glow),inset 0 0 6px rgba(74,124,247,0.06);
+}
 .ep .fields .label-row input::selection{background:var(--accent-blue);color:#fff}
 .w140{width:120px!important}
 .actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
