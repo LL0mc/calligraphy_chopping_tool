@@ -104,113 +104,260 @@ HTML = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <title>字帖校对 - 第_PAGE_页</title>
 <style>
+:root {
+  --bg-deep: #0a0a12;
+  --bg-surface: #12121e;
+  --glass-bg: rgba(255,255,255,0.04);
+  --glass-border: rgba(255,255,255,0.08);
+  --glass-hover: rgba(255,255,255,0.12);
+  --text-primary: #e8e0d4;
+  --text-muted: #908078;
+  --text-faint: #605850;
+  --accent-red: #e8453c;
+  --accent-red-glow: rgba(232,69,60,0.25);
+  --accent-blue: #4a7cf7;
+  --accent-blue-glow: rgba(74,124,247,0.2);
+  --accent-gold: #c09860;
+  --accent-green: #34d399;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --font-ui: 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-display: 'ZCOOL QingKe HuangYou', 'KaiTi', serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', monospace;
+  --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Microsoft YaHei',sans-serif;background:#1a1612;color:#d4c9b8;padding:12px}
-.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
-.toolbar span{color:#b0a08e}
-.toolbar button,.toolbar input{padding:5px 12px;border-radius:4px;border:none;background:#3a3028;color:#d4c9b8;cursor:pointer}
-.toolbar button:hover{background:#4a3f35}
-.container{display:flex;gap:12px}
+body{
+  font-family:var(--font-ui);
+  background:var(--bg-deep);
+  background-image:radial-gradient(ellipse at 50% 0, rgba(74,124,247,0.08), transparent 70%);
+  color:var(--text-primary);
+  padding:16px;
+  min-height:100vh;
+}
+.toolbar{
+  display:flex;gap:6px;align-items:center;margin-bottom:12px;flex-wrap:wrap;
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-lg);padding:8px 14px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  animation:fadeIn 0.4s ease;
+}
+.toolbar span{color:var(--text-muted);font-size:13px}
+.btn{
+  padding:6px 14px;border-radius:var(--radius-sm);border:none;
+  background:rgba(255,255,255,0.06);
+  color:var(--text-primary);cursor:pointer;
+  font-family:var(--font-ui);font-size:13px;
+  transition:var(--transition);
+}
+.btn:hover{
+  background:rgba(255,255,255,0.12);
+  box-shadow:0 0 12px rgba(255,255,255,0.08);
+  transform:translateY(-1px);
+}
+.btn-primary{background:rgba(74,124,247,0.15);color:var(--accent-blue)}
+.btn-primary:hover{background:rgba(74,124,247,0.25);box-shadow:0 0 14px var(--accent-blue-glow)}
+.btn-danger{background:rgba(232,69,60,0.12);color:var(--accent-red)}
+.btn-danger:hover{background:rgba(232,69,60,0.2);box-shadow:0 0 14px var(--accent-red-glow)}
+.btn-success{background:rgba(52,211,153,0.12);color:var(--accent-green)}
+.btn-success:hover{background:rgba(52,211,153,0.2);box-shadow:0 0 14px rgba(52,211,153,0.2)}
+.toolbar input[type=number]{
+  padding:5px 8px;border-radius:var(--radius-sm);border:1px solid var(--glass-border);
+  background:rgba(255,255,255,0.06);color:var(--text-primary);
+  font-family:var(--font-mono);font-size:13px;width:60px;
+  transition:var(--transition);
+}
+.toolbar input[type=number]:focus{outline:none;border-color:var(--accent-blue);box-shadow:0 0 10px var(--accent-blue-glow)}
+.container{display:flex;gap:14px;animation:fadeIn 0.5s ease 0.1s both}
 .left{flex:1;text-align:center}
+.glass{
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-md);padding:12px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  transition:var(--transition);
+}
+.glass:hover{border-color:var(--glass-hover)}
 .img-wrap{position:relative;display:inline-block;max-width:100%;max-height:88vh}
-.img-wrap img{max-width:100%;max-height:88vh;height:auto;display:block;border-radius:6px}
+.img-wrap img{max-width:100%;max-height:88vh;height:auto;display:block;border-radius:calc(var(--radius-md) - 2px)}
 #cv{position:absolute;top:0;left:0;cursor:crosshair;z-index:1}
-.right{width:520px;display:flex;flex-direction:column;gap:8px}
-.fi{width:100%;padding:6px 10px;background:#2a2520;color:#d4c9b8;border:1px solid #4a3f35;border-radius:4px}
-.fi:focus{outline:none;border-color:#8b7355}
-.tw{overflow-y:auto;max-height:35vh}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{background:#3a3028;padding:5px 6px;text-align:left;position:sticky;top:0;color:#b0a08e}
-td{padding:3px 6px;border-bottom:1px solid #2a2520;cursor:pointer}
-tr:hover{background:#2a2520}
-tr.sel{background:#3a3028}
-.ep{background:#2a2520;padding:12px;border-radius:6px}
-.ep input{background:#1a1612;color:#d4c9b8;border:1px solid #4a3f35;padding:5px 8px;border-radius:4px;margin:2px}
-.ep input:focus{outline:none;border-color:#8b7355}
-.w140{width:140px}
-.bnv{background:#4a3f35;padding:5px 14px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8}
-.bnv:hover{background:#5c4f43}
-.bdr{background:#5c2e2e;padding:5px 14px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8}
-.bdr:hover{background:#7a3e3e}
-.bad{background:#2d4a3e;padding:5px 14px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8}
-.bad:hover{background:#3d5c4e}
-.msg{padding:3px 8px;border-radius:4px;display:inline-block;color:#b0a08e}
-.msg.ok{background:#2d4a3e;color:#a8c9b8}
-.para{background:#2a2520;padding:10px;border-radius:6px;font-size:14px;line-height:1.5;word-break:break-all;max-height:18vh;overflow-y:auto}
-.h{color:#8a7a68;font-size:12px;margin-top:4px}
-.overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:999}
-.overlay>div{background:#2a2520;padding:30px 50px;border-radius:12px;text-align:center;color:#d4c9b8}
-.spinner{border:4px solid #4a3f35;border-top:4px solid #d4c9b8;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:0 auto 16px}
+.right{
+  width:520px;display:flex;flex-direction:column;gap:10px;
+  animation:fadeIn 0.5s ease 0.2s both;
+}
+.fi{
+  width:100%;padding:8px 12px;border-radius:var(--radius-sm);
+  border:1px solid var(--glass-border);
+  background:rgba(255,255,255,0.06);color:var(--text-primary);
+  font-family:var(--font-ui);font-size:13px;
+  transition:var(--transition);
+}
+.fi:focus{outline:none;border-color:var(--accent-blue);box-shadow:0 0 10px var(--accent-blue-glow)}
+.tw{overflow-y:auto;max-height:35vh;padding:0}
+table{width:100%;border-collapse:collapse;font-size:13px;font-family:var(--font-ui)}
+th{
+  background:rgba(255,255,255,0.06);padding:6px 8px;text-align:left;
+  position:sticky;top:0;color:var(--text-muted);font-weight:500;font-size:12px;
+}
+td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:var(--transition)}
+tr{transition:var(--transition)}
+tr:hover td{background:rgba(255,255,255,0.04)}
+tr td:first-child{position:relative}
+tr:hover td:first-child::before{
+  content:'';position:absolute;left:0;top:3px;bottom:3px;width:2px;
+  background:var(--accent-blue);border-radius:1px;
+  box-shadow:0 0 8px var(--accent-blue-glow);
+}
+tr.sel td{background:rgba(74,124,247,0.12)}
+tr.sel td:first-child::before{
+  content:'';position:absolute;left:0;top:3px;bottom:3px;width:2px;
+  background:var(--accent-blue);border-radius:1px;
+  box-shadow:0 0 8px var(--accent-blue-glow);
+}
+.ep{display:flex;align-items:flex-start;gap:14px;min-height:100px;margin-bottom:8px}
+.ep #crop{width:90px;height:90px;object-fit:contain;border:1px solid var(--glass-border);border-radius:var(--radius-sm);background:var(--bg-deep)}
+.ep .fields{flex:1}
+.ep .fields .row{display:flex;align-items:center;gap:6px;margin-top:4px}
+.ep .fields .row label{color:var(--text-faint);font-size:12px;width:16px;text-align:right;font-family:var(--font-mono)}
+.ep .fields .row input{
+  flex:1;padding:5px 8px;border-radius:var(--radius-sm);border:1px solid var(--glass-border);
+  background:rgba(255,255,255,0.06);color:var(--text-primary);
+  font-family:var(--font-mono);font-size:13px;transition:var(--transition);
+}
+.ep .fields .row input:focus{outline:none;border-color:var(--accent-blue);box-shadow:0 0 10px var(--accent-blue-glow)}
+.ep .fields .label-row{display:flex;align-items:center;gap:8px}
+.ep .fields .label-row .label-text{color:var(--text-muted);font-size:13px}
+.ep .fields .label-row .ocr-info{color:var(--text-faint);font-size:12px;margin-left:8px}
+.w140{width:120px!important}
+.actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.actions .hint{color:var(--text-faint);font-size:11px;margin-left:4px}
+.legend{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap}
+.legend .dot{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted)}
+.legend .dot::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%}
+.legend .dot.normal::before{background:#b4dcff;box-shadow:0 0 5px rgba(180,220,255,0.3)}
+.legend .dot.shape::before{background:#ffcc00;box-shadow:0 0 5px rgba(255,204,0,0.3)}
+.legend .dot.low::before{background:var(--accent-red);box-shadow:0 0 5px var(--accent-red-glow)}
+.legend .dot.fixed::before{background:var(--accent-blue);box-shadow:0 0 5px var(--accent-blue-glow)}
+.legend .dot.selected::before{background:var(--accent-green);box-shadow:0 0 5px rgba(52,211,153,0.3)}
+.para-glass{
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  border-radius:var(--radius-md);padding:10px 14px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
+.para{font-size:14px;line-height:1.6;word-break:break-all;max-height:18vh;overflow-y:auto;color:var(--text-primary)}
+.para .label{color:var(--text-muted);font-size:11px;margin-bottom:4px;display:block}
+.msg{padding:3px 10px;border-radius:var(--radius-sm);display:inline-block;font-size:12px;color:var(--text-faint)}
+.msg.ok{background:rgba(52,211,153,0.12);color:var(--accent-green)}
+.overlay{
+  position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.6);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  display:flex;justify-content:center;align-items:center;z-index:999;
+}
+.overlay>div{
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  padding:36px 56px;border-radius:var(--radius-lg);text-align:center;color:var(--text-primary);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+}
+.spinner{
+  border:3px solid rgba(255,255,255,0.08);
+  border-top:3px solid var(--accent-blue);
+  border-radius:50%;width:36px;height:36px;
+  animation:spin 0.8s linear infinite;margin:0 auto 16px;
+}
 @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
-.st{font-size:12px;padding:2px 6px;border-radius:3px;font-weight:bold}
-.st0{background:#3d2222;color:#ff6666}
-.st1{background:#2d4a3e;color:#88cc88}
-.st2{background:#3d3d22;color:#cccc66}
-.st3{background:#333;color:#888}
-.st4{background:#4a3520;color:#ff9944}
+.st{font-size:11px;padding:3px 12px;border-radius:20px;font-weight:500;display:inline-flex;align-items:center;gap:5px}
+.st::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%}
+.st0{background:rgba(232,69,60,0.12);color:var(--accent-red)}
+.st0::before{background:var(--accent-red);box-shadow:0 0 6px var(--accent-red-glow);animation:breathe 2s ease-in-out infinite}
+.st1{background:rgba(52,211,153,0.12);color:var(--accent-green)}
+.st1::before{background:var(--accent-green);box-shadow:0 0 6px rgba(52,211,153,0.25)}
+.st2{background:rgba(192,152,96,0.12);color:var(--accent-gold)}
+.st2::before{background:var(--accent-gold);box-shadow:0 0 6px rgba(192,152,96,0.25)}
+.st3{background:rgba(255,255,255,0.05);color:var(--text-muted)}
+.st3::before{background:var(--text-muted)}
+.st4{background:rgba(232,69,60,0.1);color:#ff9944}
+.st4::before{background:#ff9944;box-shadow:0 0 6px rgba(255,153,68,0.25);animation:breathe 2s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:1}50%{opacity:0.4}}
+@keyframes fadeIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.15)}
 </style>
 </head>
 <body>
 <div class="toolbar">
-  <span>页码:</span><input type="number" id="pi" value="_PAGE_" min="1" style="width:60px">
-  <button onclick="loadPage()">加载</button>
-  <button onclick="goPrev()">◀ 上一页</button>
-  <button onclick="goNext()">下一页 ▶</button>
+  <span>页码:</span>
+  <input type="number" id="pi" value="_PAGE_" min="1">
+  <button class="btn" onclick="loadPage()">加载</button>
+  <button class="btn" onclick="goPrev()">◀ 上一页</button>
+  <button class="btn" onclick="goNext()">下一页 ▶</button>
   <span id="statusLabel" class="st st0">-</span>
-  <button onclick="skipPage()" style="background:#4a3f35;padding:3px 10px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8;font-size:12px">⏭ 跳过</button>
+  <button class="btn" onclick="skipPage()" style="font-size:12px">⏭ 跳过</button>
   <span>选中: <b id="sl">-</b> / _TOTAL_</span>
-  <span id="sm" style="color:#888;font-size:13px"></span>
-  <button onclick="submitPage()" style="background:#6b5b4a;padding:5px 14px;border-radius:4px;border:none;cursor:pointer;color:#d4c9b8">提交</button>
+  <span id="sm" style="color:var(--text-faint);font-size:13px"></span>
+  <button class="btn btn-success" onclick="submitPage()">提交</button>
 </div>
 <div id="loadingOverlay" class="overlay" style="display:none">
   <div><div class="spinner"></div><div id="loadingMsg">处理中...</div></div>
 </div>
 <div class="container">
   <div class="left">
-    <div class="img-wrap">
-    <img id="img" src="data:image/png;base64,_IMG_" alt="page">
-    <canvas id="cv"></canvas>
+    <div class="glass" style="display:inline-block;padding:4px">
+      <div class="img-wrap">
+        <img id="img" src="data:image/png;base64,_IMG_" alt="page">
+        <canvas id="cv"></canvas>
+      </div>
     </div>
   </div>
   <div class="right">
-    <div class="ep">
-      <div style="display:flex;align-items:flex-start;gap:12px;min-height:100px">
-        <img id="crop" src="" alt="裁剪" style="width:90px;height:90px;object-fit:contain;border:1px solid #555;border-radius:4px;background:#111">
-        <div style="flex:1">
-          <div><span style="color:#aaa">文字:</span>
+    <div class="glass">
+      <div class="ep">
+        <img id="crop" src="" alt="裁剪">
+        <div class="fields">
+          <div class="label-row">
+            <span class="label-text">文字:</span>
             <input id="et" class="w140" onkeydown="if(event.key==='Enter'){event.preventDefault();saveWait(function(){document.getElementById('msg').className='msg ok';document.getElementById('msg').textContent='已保存';});}">
-            <span style="color:#888;margin-left:8px">OCR: <span id="eo">-</span></span>
+            <span class="ocr-info">OCR: <span id="eo">-</span></span>
           </div>
-          <div style="margin-top:4px">
-            <span style="color:#888;font-size:12px">X</span><input id="ex" class="w140" type="number">
-            <span style="color:#888;font-size:12px">Y</span><input id="ey" class="w140" type="number">
-            <span style="color:#888;font-size:12px">W</span><input id="ew" class="w140" type="number">
-            <span style="color:#888;font-size:12px">H</span><input id="eh" class="w140" type="number">
+          <div class="row">
+            <label>X</label><input id="ex" class="w140" type="number">
+            <label>Y</label><input id="ey" class="w140" type="number">
+          </div>
+          <div class="row">
+            <label>W</label><input id="ew" class="w140" type="number">
+            <label>H</label><input id="eh" class="w140" type="number">
           </div>
         </div>
       </div>
-      <div style="margin-top:6px">
-        <button class="bnv" onclick="mv(-1)">上一</button>
-        <button class="bnv" onclick="mv(1)">下一</button>
-        <button class="bdr" onclick="delChar()">删除</button>
-        <button class="bad" onclick="addChar()">新增</button>
+      <div class="actions">
+        <button class="btn" onclick="mv(-1)">上一</button>
+        <button class="btn" onclick="mv(1)">下一</button>
+        <button class="btn btn-danger" onclick="delChar()">删除</button>
+        <button class="btn btn-primary" onclick="addChar()">新增</button>
         <span id="msg" class="msg"></span>
+        <span class="hint">拖拽调整 · 回车保存 · 点击框切换 · 列号右→左</span>
       </div>
-      <div class="h">拖拽调整位置 | 回车保存 | 点击框切换 | 列号从右到左</div>
-<div style="font-size:11px;color:#888;margin-top:4px">
-  <span style="color:#b4dcff">█ 正常</span>
-  <span style="color:#ffcc00">█ 形状异常</span>
-  <span style="color:#ff4444">█ 低置信/?</span>
-  <span style="color:#00c8ff">█ 已修正</span>
-  <span style="color:#00ff00">█ 选中</span>
-</div>
+      <div class="legend">
+        <span class="dot normal">正常</span>
+        <span class="dot shape">形状异常</span>
+        <span class="dot low">低置信/?</span>
+        <span class="dot fixed">已修正</span>
+        <span class="dot selected">选中</span>
+      </div>
     </div>
-    <div id="para" class="para"></div>
+    <div class="para-glass">
+      <span class="label">段落预览</span>
+      <div id="para" class="para"></div>
+    </div>
     <input class="fi" id="fi" placeholder="筛选文字/OCR..." oninput="ft()">
-    <div class="tw"><table id="tbl">
-      <thead><tr><th>#</th><th>列</th><th>行</th><th>文字</th><th>置信</th><th>X</th><th>Y</th></tr></thead>
-      <tbody id="tb"></tbody>
-    </table></div>
+    <div class="glass tw" style="padding:0">
+      <table id="tbl">
+        <thead><tr><th>#</th><th>列</th><th>行</th><th>文字</th><th>置信</th><th>X</th><th>Y</th></tr></thead>
+        <tbody id="tb"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 <script>
