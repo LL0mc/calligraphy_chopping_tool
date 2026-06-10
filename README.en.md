@@ -47,6 +47,20 @@ flowchart TD
 
 </details>
 
+## Digital Ink Frontend Redesign (v19.5)
+
+The project's frontend has been fully upgraded with a **Digital Ink** visual language across all three web pages:
+
+- **CSS variable system** — `:root` global tokens (`--bg-deep`, `--glass-*`, `--accent-*`, `--font-*`)
+- **Dual theme** — Dark `#0e1420` (blue-charcoal) / Light `#f2e8c8` (warm yellow), persisted via localStorage, toggled from tab bar
+- **Glass morphism** — Panels with `backdrop-filter: blur(12px)` and subtle glowing borders
+- **Blue accent** — `#4a7cf7` focus glow on buttons and inputs
+- **Borderless design** — Buttons and inputs use translucent backgrounds instead of hard borders
+- **Typography** — Google Fonts: Noto Sans SC, ZCOOL QingKe HuangYou, JetBrains Mono
+- **Compose** — Unified `.btn-primary` (blue glow) / `.btn-success` (green glow) buttons, flex-wrap variant thumbnails
+
+> Built with **opencode** + **DeepSeek V4**.
+
 ## Three Web Apps
 
 ### 1. Review Server (review_server) — Port 5000
@@ -54,7 +68,7 @@ flowchart TD
 Flask web GUI for drag-based correction of OCR bounding boxes:
 
 <div align="center">
-  <img src="docs/images/单字切割页面截图.png" alt="Review interface" width="85%">
+  <img src="docs/images/切割页面v2_米黄色.png" alt="Review interface" width="85%">
   <p><em>Color-coded boxes (red/yellow/blue/cyan), right-side table + paragraph preview, drag handles</em></p>
 </div>
 
@@ -80,7 +94,7 @@ Flask web GUI for drag-based correction of OCR bounding boxes:
 Browse and search all submitted character slices with multi-mode comparison and grid references:
 
 <div align="center">
-  <img src="docs/images/字库浏览截图.png" alt="Character browser" width="85%">
+  <img src="docs/images/字库浏览v2_浅色.png" alt="Character browser" width="85%">
   <p><em>Left sidebar: search by character. Right: 240×240 Fabric.js canvas. Bottom: variant thumbnails</em></p>
 </div>
 
@@ -98,7 +112,7 @@ Browse and search all submitted character slices with multi-mode comparison and 
 Full-resolution Pillow layout engine that assembles sliced characters into calligraphy compositions:
 
 <div align="center">
-  <img src="docs/images/作品生成截图.png" alt="Layout interface" width="85%">
+  <img src="docs/images/集字排版v2_浅色.png" alt="Layout interface" width="85%">
   <p><em>Left sidebar: variant picker. Bottom params: cols/direction/size/gap/colors. Click preview to locate variant</em></p>
 </div>
 

@@ -51,6 +51,20 @@ flowchart TD
 
 </details>
 
+## Digital Ink 前端重构 (v19.5)
+
+本项目从原生的深色主题全面升级为 **Digital Ink** 视觉语言，覆盖校对服务器、字符查看器和集字排版三个前端页面：
+
+- **CSS 变量系统** — `:root` 全局 tokens（`--bg-deep`、`--glass-*`、`--accent-*`、`--font-*`），统一维护
+- **双主题切换** — 深色 `#0e1420`（蓝灰色调）/ 浅色 `#f2e8c8`（暖黄），localStorage 持久化，tab 栏一键切换
+- **玻璃拟态** — 面板 `backdrop-filter: blur(12px)` 半透明毛玻璃效果 + 微光边框
+- **蓝色强调** — `#4a7cf7` 聚焦辉光，按钮/输入框焦点发光反馈
+- **无框设计** — 按钮和输入框去掉硬边框，纯半透明底色悬浮
+- **排版升级** — Google Fonts（Noto Sans SC、ZCOOL QingKe HuangYou、JetBrains Mono）
+- **集字排版** — 统一 `.btn-primary`（蓝辉光）/ `.btn-success`（绿辉光）按钮体系，变体缩略图 flex-wrap 左对齐排列
+
+> 本项目由 **opencode** + **DeepSeek V4** 协同完成开发。
+
 ## 三大 Web 应用
 
 ### 1. 校对服务器 (review_server) — Port 5000
@@ -58,7 +72,7 @@ flowchart TD
 Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 
 <div align="center">
-  <img src="docs/images/单字切割页面截图.png" alt="校对界面" width="85%">
+  <img src="docs/images/切割页面v2_米黄色.png" alt="校对界面" width="85%">
   <p><em>校对界面：红蓝黄绿彩色框标识状态，右侧表格 + 段落预览，拖拽调整框位置/大小</em></p>
 </div>
 
@@ -84,7 +98,7 @@ Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 提交完成后浏览检索所有已裁剪单字，支持多模式对比和米字格/田字格参考：
 
 <div align="center">
-  <img src="docs/images/字库浏览截图.png" alt="字库浏览界面" width="85%">
+  <img src="docs/images/字库浏览v2_浅色.png" alt="字库浏览界面" width="85%">
   <p><em>字库浏览：左侧搜索栏按字检索，右侧 240×240 Fabric.js 画布显示单字，下方缩略图切换同字变体</em></p>
 </div>
 
@@ -102,7 +116,7 @@ Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 Pillow 全分辨率排版引擎，将裁剪的单字拼合成书法作品：
 
 <div align="center">
-  <img src="docs/images/作品生成截图.png" alt="集字排版界面" width="85%">
+  <img src="docs/images/集字排版v2_浅色.png" alt="集字排版界面" width="85%">
   <p><em>集字排版：侧边栏按字搜索变体，底部参数栏调节行列/方向/间距/配色，预览区点击定位变体</em></p>
 </div>
 
