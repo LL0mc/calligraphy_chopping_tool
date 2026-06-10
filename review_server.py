@@ -128,11 +128,11 @@ HTML = r"""<!DOCTYPE html>
   --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
 }
 body.light{
-  --bg-deep: #f5f0e8;
-  --bg-surface: #ffffff;
-  --glass-bg: rgba(255,255,255,0.7);
-  --glass-border: rgba(0,0,0,0.08);
-  --glass-hover: rgba(0,0,0,0.14);
+  --bg-deep: #f2e8c8;
+  --bg-surface: #faf4e0;
+  --glass-bg: rgba(255,252,240,0.8);
+  --glass-border: rgba(0,0,0,0.07);
+  --glass-hover: rgba(0,0,0,0.12);
   --text-primary: #2c2416;
   --text-muted: #6b6050;
   --text-faint: #9a9080;
@@ -210,10 +210,9 @@ body{
 .tw{overflow-y:auto;max-height:35vh;padding:0}
 table{width:100%;border-collapse:collapse;font-size:13px;font-family:var(--font-ui)}
 th{
-  background:rgba(255,255,255,0.06);padding:6px 8px;text-align:left;
+  background:var(--bg-deep);padding:6px 8px;text-align:left;
   position:sticky;top:0;z-index:2;color:var(--text-muted);font-weight:500;font-size:12px;
 }
-body.light th{background:rgba(0,0,0,0.04)}
 td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:var(--transition)}
 tr{transition:var(--transition)}
 tr:hover td{background:rgba(255,255,255,0.04)}
@@ -232,7 +231,7 @@ tr.sel td:first-child::before{
 .ep{display:flex;align-items:flex-start;gap:14px;min-height:100px;margin-bottom:8px}
 .ep #crop{width:90px;height:90px;object-fit:contain;border:1px solid var(--glass-border);border-radius:var(--radius-sm);background:var(--bg-deep)}
 .ep .fields{flex:1}
-.ep .fields .row{display:flex;align-items:center;gap:6px;margin-top:4px}
+.ep .fields .row{display:flex;align-items:center;gap:6px;margin-top:8px}
 .ep .fields .row label{color:var(--text-faint);font-size:12px;width:16px;text-align:right;font-family:var(--font-mono)}
 .ep .fields .row input{
   flex:1;padding:5px 8px;border-radius:var(--radius-sm);border:1px solid var(--glass-border);
@@ -240,8 +239,8 @@ tr.sel td:first-child::before{
   font-family:var(--font-mono);font-size:13px;transition:var(--transition);
 }
 .ep .fields .row input:focus{outline:none;border-color:var(--accent-blue);box-shadow:0 0 10px var(--accent-blue-glow)}
-.ep .fields .label-row{display:flex;align-items:center;gap:8px}
-.ep .fields .label-row .label-text{color:var(--text-muted);font-size:13px}
+.ep .fields .label-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.ep .fields .label-text{color:var(--text-muted);font-size:13px}
 .ep .fields .label-row .ocr-info{color:var(--text-faint);font-size:12px;margin-left:8px}
 .w140{width:120px!important}
 .actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}
