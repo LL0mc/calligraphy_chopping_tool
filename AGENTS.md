@@ -172,3 +172,7 @@ python review_server.py
 - **Phase 2:** 第一梯队单元测试（纯逻辑函数：remove_overlapping_boxes / expand_box / classify_columns 等）
 - **Phase 3:** 第二梯队单元测试（合成图像：detect_main_content_bbox / detect_missing_chars_in_gaps / refine_char_bbox）
 - **Phase 4:** 集成测试（黄金输出回归）
+
+## OCR Evaluation Log
+
+实验记录见 `docs/ocr_evaluation_log.md`。**关键教训：** 评估时 GT 必须是静态参考（用 baseline `_ocr_results.json` + `_corrected.json` 构建），不能依赖每次迭代的检测结果；`orig_idx` 在参数变化后不再有效，需用位置匹配（Hungarian）。
