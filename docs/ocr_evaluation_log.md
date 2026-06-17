@@ -112,18 +112,37 @@ Hungarian algorithm matches GT and detection boxes by center distance (max 60px 
 
 ---
 
-## Iteration 2 — In Progress
-
-**Hypothesis from Iter 1:** CC overextends rightward because binary_threshold (140) includes too much ink, connecting the character to adjacent pixels. Higher threshold = less ink = tighter boxes.
+## Iteration 2 — 2026-06-17 — ❌ Regressed
 
 **Changes:**
 | Param | Before | After | Rationale |
 |-------|--------|-------|-----------|
-| binary_threshold | 140 | 150 | Less ink→tighter CC boxes→reduce right bias |
+| binary_threshold | 140 | 150 | Less ink→tighter CC boxes |
 | bbox_padding | 5 | 3 | Reduce all edges by 2px |
-| text validation | — | `_is_valid_chinese` | Filter non-CJK noise from `original_text` preference |
+| text validation | — | `_is_valid_chinese` | Filter non-CJK in original_text |
 
-**Expected:** Tighter boxes reduce right edge error (4.2→3.x), padding reduction helps all edges equally. Text validation should fix ~16 errors (non-CJK chars at high confidence).
+**Results vs Baseline:**
+| Metric | Baseline | Iter 2 | Δ |
+|--------|----------|--------|---|
+| Score | **91.57** | **90.34** | **-1.23** |
+| Edge l/t/r/b signed | +0.2/-2.2/+4.2/+1.1 | +2.6/+0.1/+1.8/-1.2 | — |
+| Mean edge err | 2.1 | 4.0 | +1.9 |
+| Text accuracy | 94.0% | 94.0% | same |
 
-**Status:** Re-running pipeline on 28 pages.
+**Analysis:** binary_threshold=150 broke stroke connectivity. Left edge shifted right (+2.6 vs +0.2) because leftmost stroke pixels became disconnected. Right edge improved (+1.8 vs +4.2) but at cost of left edge. Net effect: box shifted right, edge error increased.
+
+**Lesson:** binary_threshold is highly sensitive. Small changes disconnects strokes asymmetrically. For handwriting, 140 is already near-optimal.
+
+---
+
+## Iteration 3 — In Progress
+
+**Hypothesis from Iter 1 & 2:** Edge bias comes from CC including too many far-away components (merge_radius too large). Reducing merge_radius should exclude distant artifacts without breaking stroke connectivity.
+
+**Changes:**
+| Param | Before | After | Rationale |
+|-------|--------|-------|-----------|
+| merge_radius | 100 | 80 | Exclude distant CC components far from OCR center |
+| bbox_padding | 5 | 3 | Reduce all edges by 2px |
+| text validation | — | `_is_valid_chinese` | Filter non-CJK in original_text |
 
