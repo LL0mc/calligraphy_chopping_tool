@@ -207,7 +207,7 @@ body{
   transition:var(--transition);
 }
 .glass:hover{border-color:var(--glass-hover)}
-.img-wrap{position:relative;display:inline-block;max-width:100%;max-height:88vh}
+.img-wrap{position:relative;display:inline-block;max-width:100%;max-height:88vh;background:#f5f0e8}
 .img-wrap img{max-width:100%;max-height:88vh;height:auto;display:block;border-radius:calc(var(--radius-md) - 2px)}
 #cv{position:absolute;top:0;left:0;cursor:crosshair;z-index:1}
 .right{
@@ -663,7 +663,21 @@ function dc() {
   var cv = document.getElementById('cv');
   var ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, cv.width, cv.height);
-  if (bx.length === 0) return;
+  if (bx.length === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.strokeRect(10, 10, cv.width - 20, cv.height - 20);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#999';
+    ctx.font = '18px "Noto Sans SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('本页无识别内容', cv.width / 2, cv.height / 2);
+    return;
+  }
   var s = gs();
   var si2 = getSortedIndices();
   var dn = {}; for (var k = 0; k < si2.length; k++) dn[si2[k]] = k + 1;
