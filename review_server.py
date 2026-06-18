@@ -949,8 +949,10 @@ def index():
         page = request.args.get('p', 24, type=int)
         raw, clean, mapping = load_clean(page)
         img = load_img(page)
-        if raw is None or img is None:
+        if img is None:
             return f"Page {page} not found", 404
+        if raw is None:
+            raw, clean, mapping = [], [], []
         # Compute server scale
         h, w = img.shape[:2]
         max_dim = 2000
@@ -971,8 +973,10 @@ def get_annotate():
     idx = request.args.get('i', 0, type=int)
     raw, clean, mapping = load_clean(page)
     img = load_img(page)
-    if raw is None or img is None:
+    if img is None:
         return jsonify({'error': 'not found'})
+    if raw is None:
+        raw, clean, mapping = [], [], []
     if idx >= len(clean): idx = 0
     h, w = img.shape[:2]
     scale = min(1600/w, 1600/h, 1.0)
@@ -985,8 +989,10 @@ def get_cropped():
     idx = request.args.get('i', 0, type=int)
     raw, clean, mapping = load_clean(page)
     img = load_img(page)
-    if raw is None or img is None:
+    if img is None:
         return jsonify({'b': ''})
+    if raw is None:
+        raw, clean, mapping = [], [], []
     if idx >= len(clean):
         return jsonify({'b': ''})
     d = clean[idx]
@@ -1316,10 +1322,15 @@ def run_page():
         if stderr:
             print(f"pipeline page {page} stderr: {stderr[:200]}")
 
-        # Verify results
+        # If pipeline returned non-zero → real failure
+        if result.returncode != 0:
+            return jsonify({'ok': False, 'm': f'检测失败: {stderr or stdout}'})
+        # Pipeline succeeded; if no OCR file (0 chars), create empty one
         new_status = get_page_status(page)
         if new_status == "unprocessed":
-            return jsonify({'ok': False, 'm': f'检测失败: {result.stderr[:200]}'})
+            empty_path = os.path.join(PAGES_DIR, f"page_{page:03d}_ocr_results.json")
+            with open(empty_path, 'w', encoding='utf-8') as f:
+                json.dump([], f)
 
         return jsonify({'ok': True, 'm': f'第{page}页检测完成'})
     except subprocess.TimeoutExpired:

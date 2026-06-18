@@ -150,7 +150,7 @@ RapidOCR 底层是 PaddleOCR（PP-OCRv5）ONNX 模型。理论上可走 PaddlePa
 
 | 内容 | 路径 |
 |------|------|
-| 实验日志（本文） | `docs/ocr_evaluation/cnocr_cnstd_finetune/experiment_log.md` |
+| 实验日志（本文） | `docs/experiment_log.md` |
 | 评估汇总 | `docs/archive/cnocr_cnstd_finetune/results/evaluation_summary.md` |
 | 训练配置 | `docs/archive/cnocr_cnstd_finetune/configs/` |
 | 补丁脚本 | `docs/archive/cnocr_cnstd_finetune/scripts/patch_cnstd.py` |
