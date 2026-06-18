@@ -186,13 +186,10 @@ python review_server.py
 
 ## CNSTD/CNOCR 微调实验（已归档）
 
-完整记录见 `docs/ocr_evaluation/cnocr_cnstd_finetune/`。
-训练产物（1GB）见 `docs/archive/cnocr_cnstd_finetune/training_artifacts/`。
+完整记录见 `docs/ocr_evaluation/cnocr_cnstd_finetune/experiment_log.md`。包括：
+- 换用不同模型（CNSTD 检测 / CNOCR 识别）
+- 参数实验（CC refine 等 5 轮对比）
+- 微调训练（CNSTD + CNOCR，22 页数据）
+- **最终结论：数据量太小，RapidOCR 保持最优**
 
-**结论**：22 页数据量太小，RapidOCR 保持最优。
-- 检测（cnstd）带预训练 68.3 vs 基线 91.1
-- 识别（cnocr）官方模型 59.5%，微调后反降至 42.7%
-- `--detection cnstd` 参数保留在 pipeline，但不推荐使用
-
-### 关键修正
-- **2026-06-18**: 发现 `cnstd/cli.py:98-99` 显式禁用 shufflenet 的 `pretrained_backbone`。已注释掉。
+关键修复：`cnstd/cli.py:98-99` 显式禁用 shufflenet 的 `pretrained_backbone`，已注释掉。
