@@ -48,30 +48,91 @@ def detect_main_content_bbox(gray: np.ndarray, min_density_ratio: float = 0.15, 
     )
 
 
-def get_ocr_char_boxes(gray: np.ndarray) -> list:
-    """获取OCR检测到的字符框（按行分组，返回单字级别）"""
+def get_ocr_char_boxes(gray: np.ndarray, cnstd_model=None) -> list:
+    """获取OCR检测到的字符框（单字级别）
+    
+    Args:
+        gray: 灰度图 (H, W)
+        cnstd_model: 若提供，则用 cnstd 做检测 + RapidOCR 仅识别；
+                     若为 None，则用 RapidOCR 检测+识别
+    """
     try:
         from rapidocr import RapidOCR
         ocr = RapidOCR()
-        result = ocr(gray, return_word_box=True)
 
-        all_chars = []
-        for line_idx, line_chars in enumerate(result.word_results):
-            if not line_chars:
-                continue
-            for char_idx, item in enumerate(line_chars):
-                if isinstance(item, tuple) and len(item) == 3:
-                    char_text, char_score, char_box = item
-                    x_coords = [p[0] for p in char_box]
-                    y_coords = [p[1] for p in char_box]
-                    x_min = int(min(x_coords))
-                    x_max = int(max(x_coords))
-                    y_min = int(min(y_coords))
-                    y_max = int(max(y_coords))
-                    all_chars.append((x_min, x_max, y_min, y_max, char_text, char_score, line_idx, char_idx))
-        return all_chars
+        if cnstd_model is not None:
+            bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+            cnstd_result = cnstd_model.detect(
+                bgr, resized_shape=(768, 768), box_score_thresh=0.1
+            )
+            det_boxes = cnstd_result['detected_texts']
+            if not det_boxes:
+                print("[OCR] cnstd 未检测到任何区域")
+                return []
+
+            all_chars = []
+            for region_idx, region in enumerate(det_boxes):
+                box = region['box'].astype(np.int32)
+                xs, ys = box[:, 0], box[:, 1]
+                rx_min, rx_max = int(xs.min()), int(xs.max())
+                ry_min, ry_max = int(ys.min()), int(ys.max())
+                rx_min = max(0, rx_min)
+                rx_max = min(gray.shape[1], rx_max)
+                ry_min = max(0, ry_min)
+                ry_max = min(gray.shape[0], ry_max)
+                if rx_max <= rx_min or ry_max <= ry_min:
+                    continue
+                rh = ry_max - ry_min
+                region_crop = gray[ry_min:ry_max, rx_min:rx_max]
+                if region_crop.size < 100:
+                    continue
+                region_crop_bgr = cv2.cvtColor(region_crop, cv2.COLOR_GRAY2BGR)
+                rec_result = ocr(region_crop_bgr, use_det=False, use_cls=False, return_word_box=True)
+                if rec_result is None or rec_result.txts is None:
+                    continue
+                full_text = ''
+                full_score = 0.0
+                if rec_result.txts and len(rec_result.txts) > 0:
+                    full_text = rec_result.txts[0] or ''
+                    if rec_result.scores and len(rec_result.scores) > 0:
+                        full_score = rec_result.scores[0] or 0.0
+                full_text = full_text.strip()
+                if not full_text:
+                    continue
+                n_chars = len(full_text)
+                for ci in range(n_chars):
+                    ctxt = full_text[ci]
+                    if not ctxt.strip():
+                        continue
+                    t = ci / max(n_chars, 1)
+                    b = (ci + 1) / max(n_chars, 1)
+                    cy_min = ry_min + int(t * rh)
+                    cy_max = ry_min + int(b * rh)
+                    all_chars.append((rx_min, rx_max, cy_min, cy_max, ctxt, full_score, region_idx, ci))
+            if not all_chars:
+                print("[OCR] cnstd 检测到区域但 RapidOCR 识别结果为空")
+            return all_chars
+        else:
+            result = ocr(gray, return_word_box=True)
+            all_chars = []
+            for line_idx, line_chars in enumerate(result.word_results):
+                if not line_chars:
+                    continue
+                for char_idx, item in enumerate(line_chars):
+                    if isinstance(item, tuple) and len(item) == 3:
+                        char_text, char_score, char_box = item
+                        x_coords = [p[0] for p in char_box]
+                        y_coords = [p[1] for p in char_box]
+                        x_min = int(min(x_coords))
+                        x_max = int(max(x_coords))
+                        y_min = int(min(y_coords))
+                        y_max = int(max(y_coords))
+                        all_chars.append((x_min, x_max, y_min, y_max, char_text, char_score, line_idx, char_idx))
+            return all_chars
     except Exception as e:
+        import traceback
         print(f"[OCR] 获取单字框失败: {e}")
+        traceback.print_exc()
         return []
 
 
@@ -189,8 +250,6 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
             new_y_min = max(0, search_y1 + nmi_y - padding)
             new_w = min(w - new_x_min, (nmx_x - nmi_x) + padding * 2)
             new_h = min(h - new_y_min, (nmx_y - nmi_y) + padding * 2)
-    
-
     
     return (new_x_min, new_y_min, new_w, new_h)
 
@@ -471,7 +530,7 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
     return missing
 
 
-def segment_characters(gray: np.ndarray, config: dict = None) -> list:
+def segment_characters(gray: np.ndarray, config: dict = None, cnstd_model=None) -> list:
     """主流程：OCR定位 + 连通域精确裁剪（不重叠）"""
     if config is None:
         config = {}
@@ -483,7 +542,7 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     
     gray_cropped = gray[content_y_min:content_y_max, content_x_min:content_x_max]
     
-    all_chars = get_ocr_char_boxes(gray_cropped)
+    all_chars = get_ocr_char_boxes(gray_cropped, cnstd_model=cnstd_model)
     
     all_chars = [(
         c[0] + content_x_min, c[1] + content_x_min,
@@ -519,16 +578,14 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     all_characters = []
     for new_col_idx, (old_col_idx, x_min, x_max, chars) in enumerate(calligraphy_columns):
         sorted_chars = sorted(chars, key=lambda c: c[2])
-        claimed_boxes = []  # 每列独立的声明列表，从上到下处理
+        claimed_boxes = []
         
-        # 检测遗漏字符
         missing_chars = detect_missing_chars_in_gaps(
             gray, sorted_chars, x_min, x_max,
             gap_threshold=config.get("gap_threshold", 100),
             binary_threshold=config.get("binary_threshold", 140),
             min_area=config.get("missing_char_min_area", 500)
         )
-        
         if missing_chars:
             print(f"[遗漏检测] 列 {new_col_idx + 1} 发现 {len(missing_chars)} 个遗漏字符")
             sorted_chars = sorted(sorted_chars + missing_chars, key=lambda c: c[2])
@@ -541,8 +598,6 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
                 exclude_boxes=punctuation_boxes,
                 claimed_regions=claimed_boxes
             )
-            
-            # Claim this refined box so subsequent chars don't steal its components
             claimed_boxes.append((new_x, new_y, new_x + new_w, new_y + new_h))
             
             area = new_w * new_h

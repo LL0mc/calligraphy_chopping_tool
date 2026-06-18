@@ -7,6 +7,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cv2
+import numpy as np
 from config import PDF_PATH, PAGES_DIR, CHARACTERS_DIR, DPI_SCALE
 from src.pdf_renderer import render_pdf_page
 from src.page_preprocessor import preprocess_page
@@ -17,6 +18,32 @@ from src.char_segmenter import (
 )
 from src.ocr_recognizer import recognize_characters
 from src.confidence_handler import export_results
+
+
+_CNSTD_MODEL = None
+
+
+def _load_cnstd():
+    global _CNSTD_MODEL
+    if _CNSTD_MODEL is not None:
+        return _CNSTD_MODEL
+    fp = os.path.join(os.path.dirname(__file__), 'output', 'training_data', 'detection', 'cnstd_finetuned.pt')
+    if not os.path.exists(fp):
+        print(f"[管道] cnstd 微调模型不存在: {fp}，回退到 RapidOCR")
+        return None
+    try:
+        from cnstd import CnStd
+        _CNSTD_MODEL = CnStd(
+            model_name='db_shufflenet_v2_small',
+            model_backend='pytorch',
+            model_fp=fp,
+            rotated_bbox=False,
+        )
+        print(f"[管道] 加载微调模型成功: cnstd_finetuned.pt")
+        return _CNSTD_MODEL
+    except Exception as e:
+        print(f"[管道] 加载微调模型失败: {e}，回退到 RapidOCR")
+        return None
 
 
 def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
@@ -43,7 +70,8 @@ def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
         "binary_threshold": 140,
         "bbox_padding": 5,
     }
-    characters = segment_characters(original_gray, config)
+    cnstd_model = _load_cnstd() if ocr_engine == "cnstd" else None
+    characters = segment_characters(original_gray, config, cnstd_model=cnstd_model)
     if not characters:
         print("  [跳过] 未检测到字符")
         return None
@@ -73,11 +101,13 @@ def main():
     parser = argparse.ArgumentParser(description="字帖全流程处理")
     parser.add_argument("pages", nargs="+", type=int, help="页码（1-based）")
     parser.add_argument("--no-correct", action="store_true", help="（已弃用）")
+    parser.add_argument("--detection", choices=["rapidocr", "cnstd"], default="rapidocr",
+                        help="检测引擎（默认 rapidocr）")
     args = parser.parse_args()
 
     for page_num in args.pages:
         try:
-            process_page(page_num)
+            process_page(page_num, ocr_engine=args.detection)
         except Exception as e:
             import traceback
             print(f"  [错误] 第{page_num}页: {e}")

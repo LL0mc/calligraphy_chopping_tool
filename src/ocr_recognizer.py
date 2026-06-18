@@ -79,6 +79,18 @@ def recognize_single_char(char_img: np.ndarray) -> Tuple[str, float]:
     return ('', 0.0)
 
 
+def _is_valid_chinese(text):
+    """Check if text is a valid Chinese character (reject ASCII letters, digits, garbage)"""
+    if not text or len(text) != 1:
+        return False
+    cp = ord(text)
+    # CJK Unified Ideographs + common CJK symbols
+    if 0x4E00 <= cp <= 0x9FFF: return True
+    if 0x3400 <= cp <= 0x4DBF: return True  # Extension A
+    if 0xF900 <= cp <= 0xFAFF: return True  # Compatibility
+    return False
+
+
 def recognize_characters(gray: np.ndarray, characters: list,
                          engine: str = "rapidocr",
                          expand_strategy: str = "square",
@@ -90,7 +102,9 @@ def recognize_characters(gray: np.ndarray, characters: list,
         x, y, w, h = char[0], char[1], char[2], char[3]
         
         # If original text from OCR is available and high-confidence, use it directly
-        if char[8] and len(str(char[8]).strip()) > 0 and char[9] >= 0.6:
+        # But only if it looks like a valid Chinese character
+        if (char[8] and len(str(char[8]).strip()) > 0 and char[9] >= 0.6
+                and _is_valid_chinese(str(char[8]).strip())):
             text = char[8]
             score = char[9]
         else:

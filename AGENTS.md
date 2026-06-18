@@ -175,4 +175,24 @@ python review_server.py
 
 ## OCR Evaluation Log
 
-实验记录见 `docs/ocr_evaluation_log.md`。**关键教训：** 评估时 GT 必须是静态参考（用 baseline `_ocr_results.json` + `_corrected.json` 构建），不能依赖每次迭代的检测结果；`orig_idx` 在参数变化后不再有效，需用位置匹配（Hungarian）。
+实验记录见 `docs/ocr_evaluation_log.md`（中文版）。
+
+**最终结论（5 轮实验 + 3 种替代方案全部退步）：**
+- Baseline (search_margin_x=40, merge_radius=100, padding=5, binary_threshold=140) 以 **91.57** 分保持最优
+- CC refine 是必需步骤——漏检从 39 降到 1，边缘误差从 25px 降到 2.1px
+- 右偏 +4.2px 是二阶问题，所有替代 CC 的方案（跳过、行级等分、等比外扩）均大幅退步（61~73 分）
+- 唯一有效提升：`_is_valid_chinese` 在 `ocr_recognizer.py` 将文字准确率从 94.0% 提到 94.1%（79→77 错误）
+- **下一步：聚焦文字纠错**，而非边缘精度
+
+## CNSTD/CNOCR 微调实验（已归档）
+
+完整记录见 `docs/ocr_evaluation/cnocr_cnstd_finetune/`。
+训练产物（1GB）见 `docs/archive/cnocr_cnstd_finetune/training_artifacts/`。
+
+**结论**：22 页数据量太小，RapidOCR 保持最优。
+- 检测（cnstd）带预训练 68.3 vs 基线 91.1
+- 识别（cnocr）官方模型 59.5%，微调后反降至 42.7%
+- `--detection cnstd` 参数保留在 pipeline，但不推荐使用
+
+### 关键修正
+- **2026-06-18**: 发现 `cnstd/cli.py:98-99` 显式禁用 shufflenet 的 `pretrained_backbone`。已注释掉。
