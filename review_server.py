@@ -207,7 +207,7 @@ body{
   transition:var(--transition);
 }
 .glass:hover{border-color:var(--glass-hover)}
-.img-wrap{position:relative;display:inline-block;max-width:100%;max-height:88vh;background:#f5f0e8}
+.img-wrap{position:relative;display:inline-block;max-width:100%;max-height:88vh}
 .img-wrap img{max-width:100%;max-height:88vh;height:auto;display:block;border-radius:calc(var(--radius-md) - 2px)}
 #cv{position:absolute;top:0;left:0;cursor:crosshair;z-index:1}
 .right{
@@ -496,7 +496,21 @@ function sc(idx) {
 }
 
 function cropImg() {
-  if (si < 0 || si >= bx.length) return;
+  var el = document.getElementById('crop');
+  if (si < 0 || si >= bx.length) {
+    var cv = document.createElement('canvas');
+    cv.width = 90; cv.height = 90;
+    var ctx = cv.getContext('2d');
+    ctx.fillStyle = '#f5f0e8';
+    ctx.fillRect(0, 0, 90, 90);
+    ctx.fillStyle = '#bbb';
+    ctx.font = '12px "Noto Sans SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('无选中', 45, 45);
+    el.src = cv.toDataURL();
+    return;
+  }
   var b = bx[si];
   var img = document.getElementById('img');
   try {
@@ -505,7 +519,7 @@ function cropImg() {
     cv.height = Math.max(1, Math.round(b.h) + 2);
     var ctx = cv.getContext('2d');
     ctx.drawImage(img, b.x - 1, b.y - 1, b.w + 2, b.h + 2, 0, 0, cv.width, cv.height);
-    document.getElementById('crop').src = cv.toDataURL();
+    el.src = cv.toDataURL();
   } catch(e) {}
 }
 
@@ -663,21 +677,7 @@ function dc() {
   var cv = document.getElementById('cv');
   var ctx = cv.getContext('2d');
   ctx.clearRect(0, 0, cv.width, cv.height);
-  if (bx.length === 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillRect(0, 0, cv.width, cv.height);
-    ctx.strokeStyle = '#ccc';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 4]);
-    ctx.strokeRect(10, 10, cv.width - 20, cv.height - 20);
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#999';
-    ctx.font = '18px "Noto Sans SC", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('本页无识别内容', cv.width / 2, cv.height / 2);
-    return;
-  }
+  if (bx.length === 0) return;
   var s = gs();
   var si2 = getSortedIndices();
   var dn = {}; for (var k = 0; k < si2.length; k++) dn[si2[k]] = k + 1;
@@ -917,7 +917,7 @@ function toggleTheme() {
   if (t === 'light') { document.body.classList.add('light'); document.getElementById('themeBtn').textContent = '☀️'; }
 })();
 function initFirst() {
-  if (bx.length === 0) return;
+  if (bx.length === 0) { cropImg(); return; }
   var si2 = getSortedIndices();
   si = si2[0]; var b = bx[si]; var label = b.corrected_text || b.text || '';
   document.getElementById('sl').textContent = '1 (' + (si+1) + ')';
