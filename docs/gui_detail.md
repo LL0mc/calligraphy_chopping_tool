@@ -93,6 +93,21 @@ Pipeline 完成字符检测后，三个 Web 应用承担人工校对、浏览检
 
 访问未处理页面（`unprocessed`）时前端自动调用 `/run_page` → 服务器以 `subprocess` 方式运行 `python pipeline.py {page} --no-correct` → 完成后自动刷新。
 
+### 1.8 重检（`/redetect`）
+
+工具栏"重检"按钮，清除当前页面的所有修改并重新运行 Pipeline：
+
+1. 删除 `corrected.json`（修正记录）
+2. 删除 `reviewed.json`（提交标记）
+3. 删除 `skipped.json`（跳过标记）
+4. 删除 `output/cropped/.../page_{num}/` 目录（裁剪图片）
+5. **清理 Obsidian 字库**：遍历字库目录，删除该页面在所有字笔记中的行
+6. 清除缓存
+7. 运行 Pipeline 重新识别
+8. 完成后前端刷新页面
+
+**用途：** 当 Pipeline 参数调整后，需要重新检测已有页面时使用。
+
 ---
 
 ## 二、字符查看器（char_viewer.py）

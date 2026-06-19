@@ -68,12 +68,13 @@ pdf_renderer.py → page_preprocessor.py → char_segmenter.py → ocr_recognize
 
 ### 3b. OCR 原始检测（`get_ocr_char_boxes`）
 
-- 调用 `RapidOCR(return_word_box=True)`，获取字级边界框。
+- 调用 `RapidOCR(PP-OCRv5, return_word_box=True)`，获取字级边界框。
+- PP-OCRv5 检测模型比 PP-OCRv4 更宽（~220px vs ~141px），能捕获完整字符（包括笔画末端）。
 - RapidOCR 返回 `word_results`，其中每个 WordResult 包含逐字符的 `(text, score, box)`。
 - `box` 为四边形（4 个点），取其 x/y 的 min/max 转为矩形 `(x_min, x_max, y_min, y_max)`。
 - 坐标从裁剪图空间转换回原图空间。
 
-**为什么用 RapidOCR 而非纯 CV？** 行书飞白、连笔、淡墨在投影/连通域方法中容易断裂或合并。RapidOCR 内置字符分割模型，能定位 OCR 可识别的字符边界，并输出置信度供后续筛选。
+**为什么用 PP-OCRv5？** PP-OCRv5 检测框更宽，能捕获完整字符笔画，减少遗漏。配合 CC refinement 的 overlap_ocr 限制，框定位精度比 PP-OCRv4 提升 56%（8.8px→3.9px）。
 
 ### 3c. 标点过滤
 
@@ -97,8 +98,9 @@ pdf_renderer.py → page_preprocessor.py → char_segmenter.py → ocr_recognize
 
 ### 3f. 列过滤（`filter_calligraphy_columns`）
 
-- 过滤条件：列宽 ≥ 130px 且字符数 ≥ 2。
+- 过滤条件：列宽 ≥ 130px、字符数 ≥ 2、**中位字符面积 ≥ 12000px²**。
 - 130px 的依据：书法主列通常 140–240px，旁注列通常 60–110px，130px 是有效分隔值。
+- 面积过滤：PP-OCRv5 检测的注释字符面积（~8000px²）远小于书法字符（~22000px²），12000px² 阈值可有效分离。
 - 过滤后重新按 X 排序、赋索引。
 
 ### 3g. 遗漏字符检测（`detect_missing_chars_in_gaps`）
@@ -131,13 +133,14 @@ pdf_renderer.py → page_preprocessor.py → char_segmenter.py → ocr_recognize
 3. 对每个面积 ≥ 20 的连通分量：
    - **与 OCR 框重叠** → 无条件保留。
    - **标点排除**：分量中心在 `punctuation_boxes` 内、且不与 OCR 框重叠 → 跳过。
-   - **距离检查**：与 OCR 中心距离 < `merge_radius=100` 或与 OCR 框重叠 → 候选。
+   - **距离检查**：与 OCR 中心距离 < `merge_radius=50` → 候选。
+   - **重叠检查**：与 OCR 框重叠且距离 < `merge_radius/2` → 候选（防止宽检测框中的相邻字符被错误合并）。
    - **已声明区域检查**：分量中心在 `claimed_regions` 内 → 跳过（防止后字窃取前字笔画）。
 4. 无候选 → 返回原 OCR 框。
 5. 合并所有候选：取 min/max extents，外扩 `padding=5`，裁切到图像边界。
 6. **过大回退**：若精炼框面积 > 2×OCR 框面积（且 OCR 面积 > 1000），排除接触 ROI 边界的组件，仅保留内部组件重新计算。
 
-**注意：** `overlap_ocr` 分量**始终**保留，不论距离多远（修复"光"字右侧捺笔距离远于 merge_radius 而丢失的问题）。
+**注意：** `overlap_ocr` 分量仅在距离 < `merge_radius/2` 时保留（防止 PP-OCRv5 宽检测框中的相邻字符组件被错误合并）。
 
 ### 3i. 去重（`remove_overlapping_boxes`）
 
