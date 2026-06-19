@@ -133,7 +133,12 @@ if median_area < 12000: continue
 3. **merge_radius=50 对 v4 兼容**：v4 搜索区域内组件更少，50px 足够
 4. **文字错误一致（58）**：pipeline 的 `original_text` 优先逻辑（score≥0.6 直接用检测文本）决定了识别质量，v4/v5 的检测文本相同
 
-**结论**：改动向后兼容，v4 和 v5 均可使用。
+**文字错误改进分解**：
+- v4 旧 pipeline → v4 新 pipeline（overlap_ocr 限制 + merge_radius=50）：79→58（-21，主要改进）
+- v4 旧 pipeline + v5 识别 → v5 新 pipeline：79→64→58（v5 识别贡献 -16，pipeline 改动贡献 -6）
+- v5 检测模型本身对识别无贡献（pipeline 的 `original_text` 优先逻辑绕过了识别模型）
+
+**结论**：改动向后兼容，v4 和 v5 均可使用。主要改进来自 pipeline 的 CC refinement 适配，而非 v5 模型升级。
 
 ## 对比图
 
