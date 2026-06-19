@@ -7,7 +7,7 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cv2
-from config import PDF_PATH, PAGES_DIR, DPI_SCALE
+from config import PDF_PATH, PAGES_DIR, DPI_SCALE, BASE_DIR
 from src.pdf_renderer import render_pdf_page
 from src.page_preprocessor import preprocess_page
 from src.char_segmenter import (
@@ -21,8 +21,9 @@ from src.confidence_handler import export_results
 
 def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
                  expand_strategy="square", expand_padding=15,
-                 remove_lines=False):
+                 remove_lines=False, output_dir=None):
     """处理单页：渲染 → 切割 → OCR → 校对"""
+    pages_dir = output_dir or PAGES_DIR
     page_idx = page_num - 1
     print(f"\n=== 第{page_num}页 ===")
 
@@ -57,7 +58,7 @@ def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
     )
 
     # Step 5: Export raw OCR
-    raw_path = os.path.join(PAGES_DIR, f"page_{page_num:03d}_ocr_results.json")
+    raw_path = os.path.join(pages_dir, f"page_{page_num:03d}_ocr_results.json")
     export_results(ocr_results, raw_path)
     print(f"  OCR完成: {len(ocr_results)} 个字符")
 
@@ -69,11 +70,18 @@ def main():
     parser = argparse.ArgumentParser(description="字帖全流程处理")
     parser.add_argument("pages", nargs="+", type=int, help="页码（1-based）")
     parser.add_argument("--no-correct", action="store_true", help="（已弃用）")
+    parser.add_argument("--output-dir", type=str, default=None,
+                        help="实验输出目录（默认写入 output/pages/）")
     args = parser.parse_args()
+
+    out_dir = None
+    if args.output_dir:
+        out_dir = os.path.join(BASE_DIR, args.output_dir)
+        os.makedirs(out_dir, exist_ok=True)
 
     for page_num in args.pages:
         try:
-            process_page(page_num)
+            process_page(page_num, output_dir=out_dir)
         except Exception as e:
             import traceback
             print(f"  [错误] 第{page_num}页: {e}")

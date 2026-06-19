@@ -22,6 +22,10 @@ C_MISS = 8
 C_EXTRA = 1
 EDGE_THRESH = 3
 
+PROD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output', 'pages')
+PAGE_DIR = PROD_DIR
+_det_dir = None  # override for experiments
+
 
 def load_json(path):
     if not os.path.exists(path): return None
@@ -62,8 +66,11 @@ def build_ground_truth(page_num):
     return gt_list
 
 
+_det_dir_override = None
+
 def load_detection(page_num):
-    return load_json(os.path.join(PAGE_DIR, f'page_{page_num:03d}_ocr_results.json'))
+    det_dir = _det_dir_override or PAGE_DIR
+    return load_json(os.path.join(det_dir, f'page_{page_num:03d}_ocr_results.json'))
 
 
 def center_dist(a, b):
@@ -152,7 +159,10 @@ def get_submitted_pages():
     return sorted(pages)
 
 
-def evaluate_all():
+def evaluate_all(det_dir=None):
+    if det_dir:
+        global _det_dir_override
+        _det_dir_override = det_dir
     pages = get_submitted_pages()
     results = []
     for p in pages:
@@ -196,5 +206,10 @@ def summarize(results):
 
 
 if __name__ == '__main__':
-    results = evaluate_all()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--det-dir', type=str, default=None,
+                        help='Detection results directory (default: same as PAGE_DIR)')
+    args = parser.parse_args()
+    results = evaluate_all(det_dir=args.det_dir)
     summarize(results)
