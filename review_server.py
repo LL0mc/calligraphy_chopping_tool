@@ -337,7 +337,7 @@ body.light ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.2)}
   <span>页码:</span>
   <input type="number" id="pi" value="_PAGE_" min="1">
   <button class="btn" onclick="loadPage()">加载</button>
-  <button class="btn" onclick="redetectPage()" style="font-size:12px">🔄 重检</button>
+  <button class="btn" onclick="redetectPage()">重检</button>
   <button class="btn" onclick="goPrev()">◀ 上一页</button>
   <button class="btn" onclick="goNext()">下一页 ▶</button>
   <span id="statusLabel" class="st st0">-</span>
@@ -1396,6 +1396,12 @@ def redetect_page():
         skipped_path = os.path.join(PAGES_DIR, f"page_{page:03d}_skipped.json")
         if os.path.exists(skipped_path):
             os.remove(skipped_path)
+
+        # Clear cropped images for this page
+        page_cropped_dir = os.path.join(CROPPED_DIR, CALLIGRAPHER, SOURCE_TEXT, f"page_{page:03d}")
+        if os.path.exists(page_cropped_dir):
+            import shutil
+            shutil.rmtree(page_cropped_dir)
 
         # Drop cache
         drop_cache(page)
