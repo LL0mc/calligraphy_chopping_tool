@@ -708,7 +708,7 @@ function dc() {
     ctx.lineWidth = i === si ? 3 : 1.5;
     ctx.strokeRect(x, y, w, h);
     var lbl = b.corrected_text || b.text || '?';
-    ctx.font = '14px "Noto Sans SC", "Microsoft YaHei", sans-serif';
+    ctx.font = '16px "Noto Sans SC", "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     var tx = x - 3, ty = y;
