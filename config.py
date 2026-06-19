@@ -9,7 +9,6 @@ PDF_PATH = os.path.join(
 )
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 PAGES_DIR = os.path.join(OUTPUT_DIR, "pages")
-CHARACTERS_DIR = os.path.join(OUTPUT_DIR, "characters")
 
 # PDF 渲染配置
 DPI_SCALE = 2  # 渲染倍数（2x = 约 200 DPI）

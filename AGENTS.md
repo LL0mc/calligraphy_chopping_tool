@@ -103,7 +103,6 @@ pipeline.py → _ocr_results.json → review_server.py (GUI review)
 ```
 output/
 ├── pages/          ← page-level data (pipeline + review_server 读写)
-├── characters/     ← pipeline 产出的原始字符图（仅供 pipeline 读写）
 └── cropped/        ← review_server submit 产出的裁剪字符图（仅供 char_viewer/compose 读）
 ```
 
@@ -118,13 +117,6 @@ output/
 | `page_{num}_corrected.json` | review_server | evaluator, load_data() | 人工修正（文字/增删框） |
 | `page_{num}_reviewed.json` | review_server | evaluator | 提交标记 |
 | `page_{num}_skipped.json` | review_server | review_server | 跳过标记 |
-
-#### `output/characters/` — 原始字符图
-
-```
-characters/page_{num}/page{num}_col{col}_row{row}.png
-```
-pipeline `save_characters()` 产出，按列行命名。仅供 pipeline 内部使用。
 
 #### `output/cropped/` — 裁剪字符图
 

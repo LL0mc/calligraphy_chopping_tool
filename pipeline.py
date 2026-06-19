@@ -7,11 +7,11 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cv2
-from config import PDF_PATH, PAGES_DIR, CHARACTERS_DIR, DPI_SCALE
+from config import PDF_PATH, PAGES_DIR, DPI_SCALE
 from src.pdf_renderer import render_pdf_page
 from src.page_preprocessor import preprocess_page
 from src.char_segmenter import (
-    segment_characters, save_characters, get_ocr_char_boxes,
+    segment_characters, get_ocr_char_boxes,
     classify_columns, split_mixed_columns, filter_calligraphy_columns,
     detect_main_content_bbox
 )
@@ -60,10 +60,6 @@ def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
     raw_path = os.path.join(PAGES_DIR, f"page_{page_num:03d}_ocr_results.json")
     export_results(ocr_results, raw_path)
     print(f"  OCR完成: {len(ocr_results)} 个字符")
-
-    # Step 6: Save character images
-    char_dir = os.path.join(CHARACTERS_DIR, f"page_{page_num:03d}")
-    save_characters(characters, char_dir, page_num)
 
     return {"characters": characters, "ocr_results": ocr_results}
 
