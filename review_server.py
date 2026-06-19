@@ -337,6 +337,7 @@ body.light ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.2)}
   <span>页码:</span>
   <input type="number" id="pi" value="_PAGE_" min="1">
   <button class="btn" onclick="loadPage()">加载</button>
+  <button class="btn" onclick="redetectPage()" style="font-size:12px">🔄 重检</button>
   <button class="btn" onclick="goPrev()">◀ 上一页</button>
   <button class="btn" onclick="goNext()">下一页 ▶</button>
   <span id="statusLabel" class="st st0">-</span>
@@ -855,6 +856,16 @@ function loadPage() {
   gotoPage(p);
 }
 
+function redetectPage() {
+  if (!confirm('重检第' + PAGE + '页？当前修改和裁剪将被清除。')) return;
+  showLoading('正在重检第' + PAGE + '页...');
+  fetch('/redetect', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE})})
+    .then(function(r){return r.json();}).then(function(d){
+      if (d.ok) { window.location.href = '/?p=' + PAGE; }
+      else { hideLoading(); document.getElementById('msg').textContent = d.m || '重检失败'; document.getElementById('msg').className = 'msg err'; }
+    }).catch(function(e){ hideLoading(); document.getElementById('msg').textContent = '请求失败: ' + e; });
+}
+
 function showLoading(msg) {
   document.getElementById('loadingMsg').textContent = msg || '处理中...';
   document.getElementById('loadingOverlay').style.display = 'flex';
@@ -1364,6 +1375,47 @@ def run_page():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'ok': False, 'm': f'检测失败: {e}'})
+
+@app.route('/redetect', methods=['POST'])
+def redetect_page():
+    try:
+        req = request.json
+        page = req['p']
+
+        # Clear corrected.json (modifications)
+        corr_path = os.path.join(PAGES_DIR, f"page_{page:03d}_corrected.json")
+        if os.path.exists(corr_path):
+            os.remove(corr_path)
+
+        # Clear reviewed.json (submission marker)
+        reviewed_path = os.path.join(PAGES_DIR, f"page_{page:03d}_reviewed.json")
+        if os.path.exists(reviewed_path):
+            os.remove(reviewed_path)
+
+        # Clear skipped marker if present
+        skipped_path = os.path.join(PAGES_DIR, f"page_{page:03d}_skipped.json")
+        if os.path.exists(skipped_path):
+            os.remove(skipped_path)
+
+        # Drop cache
+        drop_cache(page)
+
+        # Run pipeline
+        pipe_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pipeline.py')
+        result = subprocess.run(
+            [sys.executable, pipe_path, str(page), '--no-correct'],
+            capture_output=True, text=True, timeout=120,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        if result.returncode != 0:
+            return jsonify({'ok': False, 'm': f'重检失败: {result.stderr[:200]}'})
+
+        return jsonify({'ok': True, 'm': f'第{page}页重检完成'})
+    except subprocess.TimeoutExpired:
+        return jsonify({'ok': False, 'm': '重检超时（>120s）'})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'ok': False, 'm': f'重检失败: {e}'})
 
 @app.route('/skip', methods=['POST'])
 def skip_page():
