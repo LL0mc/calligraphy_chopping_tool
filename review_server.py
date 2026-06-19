@@ -624,13 +624,19 @@ function delChar() {
 }
 
 function addChar() {
-  var si2 = getSortedIndices();
-  var pos = -1;
-  for (var k = 0; k < si2.length; k++) { if (si2[k] === si) { pos = k; break; } }
-  var refIdx = pos >= 0 ? si : -1;
-  var ref = refIdx >= 0 ? bx[refIdx] : bx[bx.length-1];
-  var nx = ref ? (ref.x + ref.w + 10) : 100;
-  var ny = ref ? ref.y : 100;
+  var refIdx = si;
+  var nx, ny;
+  if (si < 0 || si >= bx.length) {
+    var si2 = getSortedIndices();
+    var first = si2.length > 0 ? bx[si2[0]] : null;
+    nx = first ? first.x : 100;
+    ny = first ? first.y - 150 : 100;
+    refIdx = -1;
+  } else {
+    var b = bx[si];
+    nx = b.x + b.w + 10;
+    ny = b.y;
+  }
   var nw = 120, nh = 120;
   fetch('/add', {method:'POST', headers:{'Content-Type':'application/json'},
     body:JSON.stringify({p:PAGE, i:refIdx, x:Math.round(nx/SCALE), y:Math.round(ny/SCALE), w:Math.round(nw/SCALE), h:Math.round(nh/SCALE)})})
@@ -734,6 +740,7 @@ function dc() {
 }
 
 function ht(cx, cy) {
+  if (si < 0 || si >= bx.length) return null;
   var s = gs();
   var b = bx[si];
   if (!b) return null;
@@ -769,6 +776,7 @@ function md(e) {
     var b = bx[i];
     if (ix >= b.x && ix <= b.x+b.w && iy >= b.y && iy <= b.y+b.h) { sc(i); return; }
   }
+  si = -1; cropImg(); dc();
 }
 
 function mm(e) {
@@ -1105,11 +1113,15 @@ def add_char():
             target = clean[after_idx]
             new_col = target.get('col', 0)
             new_row = target.get('row', 0) + 0.5
+        elif clean:
+            # No selection: insert at beginning of reading order
+            sorted_clean = sorted(clean, key=lambda d: (-d.get('col', 0), d.get('row', 0)))
+            first = sorted_clean[0]
+            new_col = first.get('col', 0)
+            new_row = first.get('row', 0) - 0.5
         else:
-            # Fallback: use max orig_idx
-            max_oi = max([c.get('orig_idx', -1) for c in corr] + [len(raw) - 1])
             new_col = 0
-            new_row = max_oi + 1
+            new_row = 0
 
         max_oi = max([c.get('orig_idx', -1) for c in corr] + [len(raw) - 1])
         new_entry = {
