@@ -10,7 +10,14 @@ def get_rapidocr():
     global _rapidocr_instance
     if _rapidocr_instance is None:
         from rapidocr import RapidOCR
-        _rapidocr_instance = RapidOCR()
+        try:
+            from rapidocr.utils.typings import OCRVersion, LangRec
+            _rapidocr_instance = RapidOCR(params={
+                'Rec.ocr_version': OCRVersion.PPOCRV5,
+                'Rec.lang_type': LangRec.CH,
+            })
+        except Exception:
+            _rapidocr_instance = RapidOCR()
     return _rapidocr_instance
 
 
