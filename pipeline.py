@@ -43,6 +43,7 @@ def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
         "size_threshold": 120,
         "binary_threshold": 140,
         "bbox_padding": 5,
+        "merge_radius": 50,
     }
     characters = segment_characters(original_gray, config)
     if not characters:

@@ -52,7 +52,16 @@ def get_ocr_char_boxes(gray: np.ndarray) -> list:
     """获取OCR检测到的字符框（按行分组，返回单字级别）"""
     try:
         from rapidocr import RapidOCR
-        ocr = RapidOCR()
+        try:
+            from rapidocr.utils.typings import OCRVersion, LangRec, LangDet
+            ocr = RapidOCR(params={
+                'Det.ocr_version': OCRVersion.PPOCRV5,
+                'Det.lang_type': LangDet.CH,
+                'Rec.ocr_version': OCRVersion.PPOCRV5,
+                'Rec.lang_type': LangRec.CH,
+            })
+        except Exception:
+            ocr = RapidOCR()
         result = ocr(gray, return_word_box=True)
 
         all_chars = []
@@ -136,10 +145,11 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
             continue
         
         # Check distance to center.
-        # Components that overlap the OCR box are kept regardless of distance
-        # (they're part of the same character, e.g. far stroke tips).
+        # Components within merge_radius are included.
+        # Components overlapping OCR box are included only if within merge_radius/2
+        # (to avoid including adjacent characters in wide detection boxes)
         dist = ((cx - center_x) ** 2 + (cy - center_y) ** 2) ** 0.5
-        if dist < merge_radius or overlap_ocr:
+        if dist < merge_radius or (overlap_ocr and dist < merge_radius * 0.5):
             # Skip components already claimed by a previous character in the same column
             if claimed_regions:
                 gcx = search_x1 + cx
@@ -189,8 +199,6 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
             new_y_min = max(0, search_y1 + nmi_y - padding)
             new_w = min(w - new_x_min, (nmx_x - nmi_x) + padding * 2)
             new_h = min(h - new_y_min, (nmx_y - nmi_y) + padding * 2)
-    
-
     
     return (new_x_min, new_y_min, new_w, new_h)
 
@@ -273,15 +281,17 @@ def filter_calligraphy_columns(columns: list, min_chars: int = 2,
                                  min_char_width: int = None, min_char_height: int = None,
                                  min_annotation_width: int = None, min_annotation_height: int = None,
                                  **kwargs) -> list:
-    """用列宽过滤书法列（列宽140-240px）vs 注释列（列宽60-110px）
-    
-    min_col_width=130 即可干净区分两者。
-    """
+    """过滤书法列：列宽 >= min_col_width 且中位字符面积 >= 12000px"""
     result = []
     for col_idx, x_min, x_max, chars in columns:
         col_width = x_max - x_min
-        if col_width >= min_col_width and len(chars) >= min_chars:
-            result.append((col_idx, x_min, x_max, chars))
+        if col_width < min_col_width or len(chars) < min_chars:
+            continue
+        areas = [(c[1]-c[0]) * (c[3]-c[2]) for c in chars]
+        median_area = sorted(areas)[len(areas)//2] if areas else 0
+        if median_area < 12000:
+            continue
+        result.append((col_idx, x_min, x_max, chars))
 
     # Sort result by x_min
     result.sort(key=lambda c: c[1])
