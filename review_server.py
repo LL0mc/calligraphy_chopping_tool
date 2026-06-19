@@ -708,12 +708,12 @@ function dc() {
     ctx.lineWidth = i === si ? 3 : 1.5;
     ctx.strokeRect(x, y, w, h);
     var lbl = b.corrected_text || b.text || '?';
-    ctx.font = '16px sans-serif';
+    ctx.font = '14px "Noto Sans SC", "Microsoft YaHei", sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
     var tx = x - 3, ty = y;
     if (tx < 20) { tx = x + w + 3; ctx.textAlign = 'left'; }
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.fillText(lbl, tx, ty);
     ctx.textAlign = 'start';
     ctx.textBaseline = 'alphabetic';
@@ -1402,6 +1402,25 @@ def redetect_page():
         if os.path.exists(page_cropped_dir):
             import shutil
             shutil.rmtree(page_cropped_dir)
+
+        # Clean Obsidian DB entries for this page
+        base_rel = os.path.join(CALLIGRAPHER, SOURCE_TEXT)
+        note_dir = os.path.join(CHAR_DB_DIR, base_rel)
+        if os.path.exists(note_dir):
+            for fname in os.listdir(note_dir):
+                if not fname.endswith('.md'):
+                    continue
+                note_path = os.path.join(note_dir, fname)
+                with open(note_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                # Remove rows for this page
+                new_lines = []
+                for line in content.splitlines():
+                    if line.startswith(f'| {page} |'):
+                        continue
+                    new_lines.append(line)
+                with open(note_path, 'w', encoding='utf-8') as f:
+                    f.write('\n'.join(new_lines) + '\n')
 
         # Drop cache
         drop_cache(page)
