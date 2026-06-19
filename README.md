@@ -58,7 +58,7 @@ flowchart TD
 Flask Web 应用，直接在页面上拖拽修正 OCR 检测框：
 
 <div align="center">
-  <img src="docs/images/切割页面v2_米黄色.png" alt="校对界面" width="85%">
+  <img src="docs/images/切割页面v2_浅色.png" alt="校对界面" width="85%">
   <p><em>校对界面：红蓝黄绿彩色框标识状态，右侧表格 + 段落预览，拖拽调整框位置/大小</em></p>
 </div>
 
@@ -157,7 +157,6 @@ Pillow 全分辨率排版引擎，将裁剪的单字拼合成书法作品：
 │   └── gui_detail.en.md       # Web app docs (English)
 └── output/                   # 输出目录（git ignored）
     ├── pages/                # 页面渲染 + OCR 结果 JSON
-    ├── characters/           # Pipeline 切割字符图
     └── cropped/              # GUI 提交裁剪字符图
 ```
 

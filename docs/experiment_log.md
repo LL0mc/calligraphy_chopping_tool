@@ -344,4 +344,4 @@ RapidOCR 3.8.4 支持 PP-OCRv5 模型。PP-OCRv5 识别精度比 PP-OCRv4 更高
 | 评估汇总 | `docs/archive/cnocr_cnstd_finetune/results/evaluation_summary.md` |
 | 训练配置 | `docs/archive/cnocr_cnstd_finetune/configs/` |
 | 补丁脚本 | `docs/archive/cnocr_cnstd_finetune/scripts/patch_cnstd.py` |
-| 训练产物（~1GB） | `docs/archive/cnocr_cnstd_finetune/training_artifacts/` |
+| 训练产物（~1GB） | ~~`docs/archive/cnocr_cnstd_finetune/training_artifacts/`~~ | 已删除 |
