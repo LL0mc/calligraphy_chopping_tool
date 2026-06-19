@@ -124,6 +124,17 @@ median_area = sorted(areas)[len(areas)//2]
 if median_area < 12000: continue
 ```
 
+## v4/v5 兼容性验证
+
+在当前改动下（overlap_ocr 限制、median_area 过滤、merge_radius=50），v4 和 v5 得分完全一致（95.08）。原因：
+
+1. **overlap_ocr 限制对 v4 无害**：v4 框窄（~141px），不会触发 overlap 兜底
+2. **median_area 过滤对 v4 无影响**：v4 检测的注释字符面积已足够小
+3. **merge_radius=50 对 v4 兼容**：v4 搜索区域内组件更少，50px 足够
+4. **文字错误一致（58）**：pipeline 的 `original_text` 优先逻辑（score≥0.6 直接用检测文本）决定了识别质量，v4/v5 的检测文本相同
+
+**结论**：改动向后兼容，v4 和 v5 均可使用。
+
 ## 对比图
 
 - `output/exp/v5adapt3/viz/page_024_gt.png` — GT（白色框）
