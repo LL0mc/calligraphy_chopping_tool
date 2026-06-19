@@ -98,11 +98,49 @@ pipeline.py → _ocr_results.json → review_server.py (GUI review)
                                      └── export PNG / PDF
 ```
 
-### Sliced Storage
+### Output Directory Structure
+
 ```
-output/cropped/{calligrapher}/{source_text}/page_{page:03d}/{seq:03d}_{char}.png
+output/
+├── pages/          ← page-level data (pipeline + review_server 读写)
+├── characters/     ← pipeline 产出的原始字符图（仅供 pipeline 读写）
+└── cropped/        ← review_server submit 产出的裁剪字符图（仅供 char_viewer/compose 读）
 ```
-4px padding. calligrapher & source_text from config.py.
+
+#### `output/pages/` — 页面数据
+
+| 文件 | 生成者 | 消费者 | 说明 |
+|------|--------|--------|------|
+| `page_{num}.png` | pipeline | review_server | PDF 渲染原图 |
+| `page_{num}_processed.png` | pipeline | review_server | 预处理后（增强对比度+内容裁剪） |
+| `page_{num}_ocr_results.json` | pipeline | review_server, evaluator | **生产文件** — 当前 OCR 结果 |
+| `page_{num}_ocr_results_baseline.json` | 手动 copy | evaluator | **不可变快照** — GT 基线 |
+| `page_{num}_corrected.json` | review_server | evaluator, load_data() | 人工修正（文字/增删框） |
+| `page_{num}_reviewed.json` | review_server | evaluator | 提交标记 |
+| `page_{num}_skipped.json` | review_server | review_server | 跳过标记 |
+
+#### `output/characters/` — 原始字符图
+
+```
+characters/page_{num}/page{num}_col{col}_row{row}.png
+```
+pipeline `save_characters()` 产出，按列行命名。仅供 pipeline 内部使用。
+
+#### `output/cropped/` — 裁剪字符图
+
+```
+cropped/{calligrapher}/{source_text}/page_{num}/{seq:03d}_{char}.png
+```
+review_server `/submit` 产出，按阅读顺序编号+字符命名。4px padding。供 char_viewer 和 compose 使用。
+
+### Experiment Workflow
+
+**原则：实验不碰生产数据。**
+
+- 使用 git 分支管理实验（`feat/xxx`）
+- 实验产出写入 `output/exp/{实验名}/`，不写 `output/pages/`
+- 评估器通过 `--page-dir` 参数指向实验目录
+- baseline.json 和 corrected.json 只从 `output/pages/` 读取，不修改
 
 ### Obsidian Char DB
 ```
