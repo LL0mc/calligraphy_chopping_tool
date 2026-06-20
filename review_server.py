@@ -361,7 +361,7 @@ body.light ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.2)}
   <span id="sm" style="color:var(--text-faint);font-size:13px"></span>
   <button class="btn" id="themeBtn" onclick="toggleTheme()" title="切换浅色/深色模式" style="font-size:16px;line-height:1">🌙</button>
   <button class="btn btn-success" onclick="submitPage()">提交</button>
-  <button class="btn btn-danger" onclick="if(confirm('退出校对服务器？')){fetch('/shutdown',{method:'POST'});document.body.innerHTML='<div style=\'display:flex;justify-content:center;align-items:center;height:100vh;font-family:var(--font-ui);color:var(--text-primary)\'><div style=\'text-align:center\'><div style=\'font-size:48px;margin-bottom:16px\'>⏻</div><div style=\'font-size:18px\'>服务器已停止</div><div style=\'font-size:13px;color:var(--text-muted);margin-top:8px\'>可以关闭此页面</div></div></div>'}" title="退出服务器" style="font-size:12px;margin-left:auto">⏻ 退出</button>
+  <button class="btn btn-danger" onclick="if(confirm('退出校对服务器？')){fetch('/shutdown',{method:'POST'});setTimeout(()=>window.close(),500)}" title="退出服务器" style="font-size:12px;margin-left:auto">⏻ 退出</button>
 </div>
 <div id="loadingOverlay" class="overlay" style="display:none">
   <div><div class="spinner"></div><div id="loadingMsg">处理中...</div></div>
@@ -432,6 +432,12 @@ var dr = null;
 var ds = null;
 var SCALE = _SCALE_;
 var PAGE = _PAGE_;
+
+if (location.search.indexOf('script=1') === -1) {
+  window.open(location.pathname + '?p=' + PAGE + '&script=1', '_blank');
+  document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:var(--font-ui);color:var(--text-primary)"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">↻</div><div style="font-size:18px">正在跳转到新标签...</div><div style="font-size:13px;color:var(--text-muted);margin-top:8px">请关闭此页面</div></div></div>';
+  throw new Error('redirecting');
+}
 
 function getSortedIndices() {
   var si2 = [];
