@@ -46,7 +46,7 @@ pipeline.py → _ocr_results.json → review_server.py (GUI校对)
 - `segment_characters(gray, config)` 调用全部子函数
 - 子函数链：`detect_main_content_bbox` → `get_ocr_char_boxes` → 标点过滤 → `classify_columns` → `split_mixed_columns` → `filter_calligraphy_columns` → `detect_missing_chars_in_gaps` → `refine_char_bbox` → `remove_overlapping_boxes` → 后处理
 - 接受 `layout_direction` 参数适配竖排/横排
-- OCR 模块用 RapidOCR（`return_word_box=True`），字级边界框
+- OCR 模块用 RapidOCR（PP-OCRv5, `return_word_box=True`），字级边界框
 
 ### `src/ocr_recognizer.py` — OCR 识别
 - `original_score >= 0.6` 时复用原文，否则重新 OCR
@@ -64,6 +64,7 @@ pipeline.py → _ocr_results.json → review_server.py (GUI校对)
 - 页面级元数据：`page_{N:03d}_meta.json`
 - 阅读顺序：竖排 RTL (`-col, row`) / 横排 LTR (`col, row`)
 - 段落视图根据 layout_direction 自适应
+- 记忆上次页面：退出时保存到 `.last_page`，下次打开自动恢复
 
 ### `char_viewer.py` — 字符查看器 + 集字排版 (Port 5001)
 - 索引自动重建（每次 API 调用扫描文件系统）

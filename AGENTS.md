@@ -2,13 +2,13 @@
 
 ## Core Principles
 - `write` tool is banned for existing files — always `read` then `edit`
-- Pipeline v19: OCR + connectivity-domain refinement for broken strokes (feibai)
+- Pipeline v20: PP-OCRv5 detection + recognition, overlap_ocr distance limit, last-page memory
 - `detect_main_content_bbox` cropping before OCR improves recall on vertical text
 - Dilate kernel: aids feibai stroke detection for localization only; final crop on original image
 - Small-annotation characters merge into main column, never discarded
 - Dedup IoU threshold 0.3, keep larger box
 
-## Pipeline (v19)
+## Pipeline (v20)
 
 ### Flow
 1. **Render** → grayscale 2496×3720 (A4-proportional)
@@ -34,7 +34,7 @@
 2. `char_segmenter.py`: gap merge distance 40→80
 3. `char_segmenter.py`: column-tail triple guard — search ≤2×avg_h, ink-tail skip, overlap >50% skip
 
-## Compose Layout Engine (v19 added)
+## Compose Layout Engine (v20 added)
 - **`src/compose_renderer.py`**: Pillow-based layout engine
   - Auto cell size = `max(max_char_w, max_char_h) × 1.15` — never overflows
   - Binary images loaded at original resolution, NEVER pre-scaled
@@ -56,7 +56,7 @@
   - Export PNG: client-side download from cached blob
   - Export PDF: server endpoint via fpdf2, full-resolution embed
 
-## Digital Ink Frontend Redesign (v19.5)
+## Digital Ink Frontend Redesign (v20)
 
 全面升级三个前端页面（review_server、char_viewer、compose）的视觉风格：
 

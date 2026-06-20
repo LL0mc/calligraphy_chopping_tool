@@ -9,6 +9,21 @@ from PIL import Image, ImageDraw, ImageFont
 app = Flask(__name__)
 _clean_cache = {}
 FONT_PATH = r'C:\Windows\Fonts\msyh.ttc'
+_LAST_PAGE_FILE = os.path.join(PAGES_DIR, '.last_page')
+
+def get_last_page():
+    try:
+        if os.path.exists(_LAST_PAGE_FILE):
+            with open(_LAST_PAGE_FILE, 'r') as f:
+                return int(f.read().strip())
+    except: pass
+    return 24
+
+def save_last_page(num):
+    try:
+        with open(_LAST_PAGE_FILE, 'w') as f:
+            f.write(str(num))
+    except: pass
 
 def get_font():
     try: return ImageFont.truetype(FONT_PATH, 14)
@@ -979,7 +994,8 @@ window.addEventListener('load', function(){ setupCanvas(); initFirst(); });
 @app.route('/')
 def index():
     try:
-        page = request.args.get('p', 24, type=int)
+        page = request.args.get('p', get_last_page(), type=int)
+        save_last_page(page)
         raw, clean, mapping = load_clean(page)
         img = load_img(page)
         if img is None:
