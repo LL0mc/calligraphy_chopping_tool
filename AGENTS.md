@@ -41,6 +41,21 @@
 - 噪声过滤：空文字 conf<0.5
 - overlap_ocr 限制已移除（经实验验证不影响效果，反而伤害识别）
 
+### v4 vs v5 实验结论（29 页基线）
+
+| 指标 | v4 基线 | v5 最终方案 | 变化 |
+|------|--------|-----------|------|
+| 平均分 | 90.15 | **94.27** | **+4.12** |
+| 误检 | 474 | 23 | -451 |
+| 漏检 | 7 | 7 | 0 |
+| 文字错误 | 66 | 66 | 0 |
+| 文字准确率 | 95.1% | 95.1% | 0 |
+
+**关键发现：**
+- PP-OCRv5 检测并不比 v4 更好——产生更多噪声框（3486 vs 3180），需要更多后处理
+- overlap_ocr 距离限制是过度工程化，去掉后效果不变（claimed_regions 已足够防重复）
+- 文字错误从 84 降回 66 是因为去掉了 overlap_ocr 限制，框不再被截断
+
 ## Compose Layout Engine (v20 added)
 - **`src/compose_renderer.py`**: Pillow-based layout engine
   - Auto cell size = `max(max_char_w, max_char_h) × 1.15` — never overflows
@@ -138,8 +153,10 @@ review_server `/submit` 产出，按阅读顺序编号+字符命名。4px paddin
 
 - 使用 git 分支管理实验（`feat/xxx`）
 - 实验产出写入 `output/exp/{实验名}/`，不写 `output/pages/`
+- **`python pipeline.py N` 会覆盖 `output/pages/page_N_ocr_results.json`（生产数据）**。实验必须用 `python pipeline.py N --output-dir output/exp/{实验名}/`
 - 评估器通过 `--det-dir` 参数指向实验目录
 - baseline.json 和 corrected.json 只从 `output/pages/` 读取，不修改
+- 如误覆盖生产数据，从 `_ocr_results_baseline.json` 恢复
 
 ### Obsidian Char DB
 ```
