@@ -570,52 +570,32 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     all_characters = remove_overlapping_boxes(all_characters, iou_threshold=config.get("iou_threshold", 0.3))
     print(f"[去重] 去重后: {len(all_characters)} 个字符")
 
-    # 后处理：修正过大的框（通常是列末尾的遗漏字符）
-    # 按列分组
+    # 后处理：过滤噪声框（空文字低置信度 + 异常小框）
     col_chars = {}
     for char in all_characters:
         col_idx = char[6]
         if col_idx not in col_chars:
             col_chars[col_idx] = []
         col_chars[col_idx].append(char)
-    
-    # 对每列检查异常大的框
+
+    cleaned = []
     for col_idx, chars in col_chars.items():
         areas = [c[2] * c[3] for c in chars]
         if not areas:
             continue
         median_area = np.median(areas)
-        print(f"[后处理] 列 {col_idx + 1}: 中位面积 {median_area:.0f}, 最大面积 {max(areas):.0f}")
-        
-        for i, char in enumerate(chars):
+        for char in chars:
+            text = char[8]
+            score = char[9]
             area = char[2] * char[3]
-            # 如果面积大于中位数的3倍，尝试缩小
-            if area > median_area * 3.0 and median_area > 1000:
-                print(f"[后处理] 列 {col_idx + 1} 行 {char[7] + 1}: 面积 {area:.0f} 过大，缩小")
-                # 计算目标尺寸（基于中位数面积的平方根）
-                target_size = int(np.sqrt(median_area))
-                # 保持中心不变，缩小框
-                cx = char[0] + char[2] // 2
-                cy = char[1] + char[3] // 2
-                
-                new_w = min(char[2], target_size)
-                new_h = min(char[3], target_size)
-                
-                new_x = max(0, cx - new_w // 2)
-                new_y = max(0, cy - new_h // 2)
-                
-                # 更新字符信息
-                chars[i] = (
-                    new_x, new_y, new_w, new_h,
-                    gray[new_y:new_y+new_h, new_x:new_x+new_w],
-                    new_w * new_h,
-                    char[6], char[7], char[8], char[9]
-                )
-    
-    # 重新合并所有字符
-    all_characters = []
-    for col_idx in sorted(col_chars.keys()):
-        all_characters.extend(col_chars[col_idx])
+            if not text.strip() and score < 0.5:
+                print(f"[过滤] 列 {col_idx + 1}: 空文字低置信框 (conf={score:.2f}, area={area:.0f})")
+                continue
+            cleaned.append(char)
+        print(f"[后处理] 列 {col_idx + 1}: 中位面积 {median_area:.0f}, 最大面积 {max(areas):.0f}")
+
+    all_characters = cleaned
+    print(f"[过滤] 过滤后: {len(all_characters)} 个字符")
 
     return all_characters
 
