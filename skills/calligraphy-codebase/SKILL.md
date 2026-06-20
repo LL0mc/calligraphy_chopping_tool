@@ -53,7 +53,7 @@ pipeline.py → _ocr_results.json → review_server.py (GUI校对)
 - 裁剪为正方形后识别，失败时回退到未扩展裁剪
 
 ### `src/confidence_handler.py` — 置信度分类 + JSON 导出
-- 分类：high (≥0.8), medium (≥0.5), low (≥0.3), unrecognized (空文本)
+- 分类：high (≥0.8), medium (≥0.5), low (<0.5), unrecognized (空文本)
 
 ### `review_server.py` — 校对 GUI (Port 5000)
 - Flask 单文件应用，前端 HTML/CSS/JS 内嵌
@@ -95,7 +95,7 @@ pipeline.py → _ocr_results.json → review_server.py (GUI校对)
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `gap_threshold` | 80 | 遗漏字符合并间距 |
-| `merge_radius` | 100 | 连通域合并半径 |
+| `merge_radius` | 50 | 连通域合并半径 |
 | `search_margin_x` | 40 | OCR 框 X 搜索范围 |
 | `search_margin_y` | 100 | OCR 框 Y 搜索范围 |
 | `size_threshold` | 120 | 大字/小字分类阈值 |
@@ -121,7 +121,6 @@ output/
     page_NNN_meta.json          # 页面级元数据（calligrapher/source/layout）
     page_NNN.png                # PDF 渲染图
     page_NNN_processed.png      # 预处理后图（调试用）
-  characters/                   # Pipeline 切割单字（按列/行编号）
   cropped/{calligrapher}/{source_text}/
     page_NNN/                   # GUI 提交裁剪（阅读顺序编号）
       001_此.png
