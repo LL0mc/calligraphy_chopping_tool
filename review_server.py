@@ -877,7 +877,7 @@ function redetectPage() {
   showLoading('正在重检第' + PAGE + '页...');
   fetch('/redetect', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:PAGE})})
     .then(function(r){return r.json();}).then(function(d){
-      if (d.ok) { window.location.href = '/?p=' + PAGE; }
+      if (d.ok) { location.replace('/?p=' + PAGE); }
       else { hideLoading(); document.getElementById('msg').textContent = d.m || '重检失败'; document.getElementById('msg').className = 'msg err'; }
     }).catch(function(e){ hideLoading(); document.getElementById('msg').textContent = '请求失败: ' + e; });
 }
@@ -910,7 +910,7 @@ function gotoPage(p) {
       showLoading('正在检测第' + p + '页...');
       fetch('/run_page', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:p})})
         .then(function(r){return r.json();}).then(function(d2){
-          if (d2.ok) { window.location.href = '/?p=' + p; }
+          if (d2.ok) { location.replace('/?p=' + p); }
           else { hideLoading(); alert(d2.m); }
         }).catch(function(e){ hideLoading(); alert('检测请求失败: '+e); });
     } else if (d.status === 'skipped') {
@@ -918,12 +918,12 @@ function gotoPage(p) {
         showLoading('正在检测第' + p + '页...');
         fetch('/run_page', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({p:p})})
           .then(function(r){return r.json();}).then(function(d2){
-            if (d2.ok) { window.location.href = '/?p=' + p; }
+            if (d2.ok) { location.replace('/?p=' + p); }
             else { hideLoading(); alert(d2.m); }
           }).catch(function(e){ hideLoading(); alert('检测请求失败: '+e); });
       } else { hideLoading(); }
     } else {
-      window.location.href = '/?p=' + p;
+      location.replace('/?p=' + p);
     }
   }).catch(function(e){ hideLoading(); alert('状态检查失败: '+e); });
 }
