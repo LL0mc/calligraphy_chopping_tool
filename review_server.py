@@ -361,6 +361,7 @@ body.light ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.2)}
   <span id="sm" style="color:var(--text-faint);font-size:13px"></span>
   <button class="btn" id="themeBtn" onclick="toggleTheme()" title="切换浅色/深色模式" style="font-size:16px;line-height:1">🌙</button>
   <button class="btn btn-success" onclick="submitPage()">提交</button>
+  <button class="btn btn-danger" onclick="if(confirm('退出校对服务器？'))fetch('/shutdown',{method:'POST'}).then(()=>window.close())" title="退出服务器" style="font-size:12px">⏻ 退出</button>
 </div>
 <div id="loadingOverlay" class="overlay" style="display:none">
   <div><div class="spinner"></div><div id="loadingMsg">处理中...</div></div>
@@ -1470,7 +1471,17 @@ def skip_page():
     except Exception as e:
         return jsonify({'ok': False, 'm': f'跳过失败: {e}'})
 
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    import threading
+    def _exit():
+        import time
+        time.sleep(0.3)
+        os._exit(0)
+    threading.Thread(target=_exit, daemon=True).start()
+    return jsonify({'ok': True, 'm': '服务器即将退出'})
+
 if __name__ == '__main__':
-    url = 'http://127.0.0.1:5000/?p=24'
+    url = f'http://127.0.0.1:5000/?p={get_last_page()}'
     print(url)
     app.run(host='127.0.0.1', port=5000, debug=False)
