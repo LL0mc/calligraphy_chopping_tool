@@ -80,7 +80,7 @@ Pipeline 完成字符检测后，三个 Web 应用承担人工校对、浏览检
 | **pending** | `_reviewed.json` 存在，但 `_corrected.json` 更新（mtime 差异 > 1s） |
 | **skipped** | `_skipped.json` 存在 |
 
-前端用不同 CSS 类区分颜色：`st1`（未处理/红）、`st2`（就绪/绿）、`st3`（已提交/黄）、`st4`（待提交/橙）、`st5`（跳过/灰）。
+前端用不同 CSS 类区分颜色：`st0`（未处理/红）、`st1`（就绪/绿）、`st2`（已提交/黄）、`st3`（跳过/灰）、`st4`（待提交/橙）。
 
 **Pending 自动刷新：** 每次 `/sv`、`/del`、`/add` 成功后都会调用 `checkStatus(PAGE)`，无需页面刷新即可看到状态变化。
 
@@ -150,13 +150,15 @@ page_027/
 | 模式 | 操作 |
 |------|------|
 | `original` | 原始裁剪图 |
-| `enhanced` | CLAHE + 锐化核（`[[0,-1,0],[-1,5,-1],[0,-1,0]]`） |
+| `enhanced` | CLAHE + GaussianBlur 锐化（`addWeighted(enhanced, 1.8, blurred, -0.8, 0)`） |
 | `bilateral` | 双边滤波（d=9, sigmaColor=75, sigmaSpace=75） |
 | `binary` | Otsu 自适应二值化 |
 
-**背景色自适应取样：** 统计图像亮度直方图，找到峰值（背景色），在该值 ±30 范围内采样平均。自动适配黑底白字/白底黑字两种字帖类型。反色时背景色随之翻转。
+**背景色自适应取样（`computeBgColor`）：** 统计图像亮度直方图，找到峰值（背景色），在该值 ±30 范围内采样平均。自动适配黑底白字/白底黑字两种字帖类型。反色时背景色随之翻转。
 
-**墨心居中（`ink_center_crop`）：** 计算字符的质心（moment），以质心为中心裁剪 200×200 区域，使字符居中对齐。
+**墨心居中（`computeInkCenter`）：** 计算字符的质心（moment），以质心为中心裁剪 200×200 区域，使字符居中对齐。
+
+
 
 ### 2.4 Fabric.js 前端
 

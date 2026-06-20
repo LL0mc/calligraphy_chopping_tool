@@ -151,7 +151,6 @@ Full-resolution Pillow layout engine that assembles sliced characters into calli
 │   └── gui_detail.en.md       # Web app docs (en)
 └── output/                   # Output (git ignored)
     ├── pages/                # Page renders + OCR JSON
-    ├── characters/           # Pipeline sliced chars
     └── cropped/              # GUI submitted chars
 ```
 

@@ -6,6 +6,14 @@ Pipeline（`pipeline.py`）是系统的检测入口，接收 PDF 页面编号，
 
 调用命令：`python pipeline.py <页码> --no-correct`
 
+> `--no-correct` 已弃用，保留仅为向后兼容。
+
+可选参数：
+
+| 参数 | 说明 |
+|------|------|
+| `--output-dir <path>` | 实验输出目录（默认写入 `output/pages/`） |
+
 ## 模块调用顺序
 
 ```
@@ -182,7 +190,7 @@ pdf_renderer.py → page_preprocessor.py → char_segmenter.py → ocr_recognize
 |------|------|
 | 高置信度（high） | `ocr_text` 非空且 score ≥ 0.8 |
 | 中置信度（medium） | score ≥ 0.5 |
-| 低置信度（low） | score ≥ 0.3 |
+| 低置信度（low） | score < 0.5 |
 | 未识别（unrecognized） | `ocr_text` 为空 |
 
 ### 导出（`export_results`）
@@ -211,7 +219,7 @@ pdf_renderer.py → page_preprocessor.py → char_segmenter.py → ocr_recognize
 | `dpi_scale` | 2 | PDF 渲染倍率，2 = ~200 DPI |
 | `binary_threshold` | 140 | 二值化阈值 |
 | `gap_threshold` | 80 | 遗漏字符合并间距（从 40 上调） |
-| `merge_radius` | 100 | 连通域合并半径 |
+| `merge_radius` | 50 | 连通域合并半径 |
 | `search_margin_x` | 40 | OCR 框 X 方向外扩搜索范围 |
 | `search_margin_y` | 100 | OCR 框 Y 方向外扩搜索范围 |
 | `min_chars_per_col` | 2 | 有效列最少字符数 |

@@ -6,6 +6,14 @@ The Pipeline (`pipeline.py`) is the detection entry point: given a PDF page numb
 
 Command: `python pipeline.py <page_num> --no-correct`
 
+> `--no-correct` is deprecated, kept for backward compatibility.
+
+Optional parameters:
+
+| Parameter | Description |
+|-----------|-------------|
+| `--output-dir <path>` | Experiment output directory (default: `output/pages/`) |
+
 ## Module Call Order
 
 ```
@@ -131,13 +139,13 @@ Core refinement step — precisely crops each character. Processed top-to-bottom
 3. For each component with area ≥ 20:
    - **Overlaps OCR box** → unconditionally kept.
    - **Punctuation exclusion**: component center inside `punctuation_boxes` AND no OCR overlap → skip.
-   - **Distance check**: distance from OCR center < `merge_radius=100` OR overlaps OCR box → candidate.
+   - **Distance check**: distance from OCR center < `merge_radius=50`, OR overlaps OCR box AND distance < `merge_radius/2` → candidate.
    - **Claimed-regions check**: component center inside `claimed_regions` → skip (prevents downstream chars from stealing upstream strokes).
 4. No candidates → return original OCR box.
 5. Merge all candidates: min/max extents, `padding=5`, clamp to image bounds.
 6. **Oversize fallback**: if refined area > 2× OCR area (and OCR area > 1000), exclude components touching the ROI boundary, recompute from internal components only.
 
-**Note:** `overlap_ocr` components are **always** kept regardless of distance (fixes 光 p78 where the right na-stroke was farther than merge_radius).
+**Note:** `overlap_ocr` components are only kept if within `merge_radius/2` distance (prevents adjacent character components from being incorrectly merged into wide PP-OCRv5 detection boxes).
 
 ### 3i. Deduplication (`remove_overlapping_boxes`)
 
@@ -179,7 +187,7 @@ For each character:
 |-------|-----------|
 | High | `ocr_text` non-empty and score ≥ 0.8 |
 | Medium | score ≥ 0.5 |
-| Low | score ≥ 0.3 |
+| Low | score < 0.5 |
 | Unrecognized | `ocr_text` empty |
 
 ### Export (`export_results`)
@@ -208,7 +216,7 @@ Output JSON format (`page_{num}_ocr_results.json`):
 | `dpi_scale` | 2 | PDF render scale, 2 = ~200 DPI |
 | `binary_threshold` | 140 | Binarization threshold |
 | `gap_threshold` | 80 | Missing char merge distance (raised from 40) |
-| `merge_radius` | 100 | CC merge radius |
+| `merge_radius` | 50 | CC merge radius |
 | `search_margin_x` | 40 | OCR box X-direction search margin |
 | `search_margin_y` | 100 | OCR box Y-direction search margin |
 | `min_chars_per_col` | 2 | Minimum chars for a valid column |

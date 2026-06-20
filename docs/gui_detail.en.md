@@ -80,7 +80,7 @@ Accessed via `/status` endpoint, frontend auto-polls/refreshes:
 | **pending** | `_reviewed.json` exists, but `_corrected.json` is newer (mtime diff > 1s) |
 | **skipped** | `_skipped.json` exists |
 
-Frontend uses different CSS classes: `st1` (unprocessed/red), `st2` (ready/green), `st3` (submitted/yellow), `st4` (pending/orange), `st5` (skipped/gray).
+Frontend uses different CSS classes: `st0` (unprocessed/red), `st1` (ready/green), `st2` (submitted/yellow), `st3` (skipped/gray), `st4` (pending/orange).
 
 **Pending auto-refresh:** `checkStatus(PAGE)` called after every `/sv`, `/del`, `/add` success — status updates without page reload.
 
@@ -135,13 +135,15 @@ Reads all files matching `(\d+)_(.+?)\.png`, builds a global dictionary:
 | Mode | Operation |
 |------|-----------|
 | `original` | Raw cropped image |
-| `enhanced` | CLAHE + sharpen kernel (`[[0,-1,0],[-1,5,-1],[0,-1,0]]`) |
+| `enhanced` | CLAHE + GaussianBlur sharpening (`addWeighted(enhanced, 1.8, blurred, -0.8, 0)`) |
 | `bilateral` | Bilateral filter (d=9, sigmaColor=75, sigmaSpace=75) |
 | `binary` | Otsu adaptive binarization |
 
-**Adaptive background sampling:** Compute image brightness histogram, find peak (background color), sample ±30 around it for the average. Auto-adapts to black-on-white or white-on-black copybooks. Background flips with invert.
+**Adaptive background sampling (`computeBgColor`):** Compute image brightness histogram, find peak (background color), sample ±30 around it for the average. Auto-adapts to black-on-white or white-on-black copybooks. Background flips with invert.
 
-**Ink-center alignment (`ink_center_crop`):** Compute character centroid (moment), crop 200×200 region centered on it.
+**Ink-center alignment (`computeInkCenter`):** Compute character centroid (moment), crop 200×200 region centered on it.
+
+
 
 ### 2.4 Fabric.js Frontend
 
