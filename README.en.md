@@ -270,7 +270,7 @@ Char viewer uses histogram peak detection to identify background color, samples 
 | Punctuation in refinement | Punctuation CCs mixed into char boxes | Zero out punct regions before CC analysis |
 | Downstream char stealing | Adjacent chars share CC components | `claimed_regions` per-char sequential claim |
 | Oversize box swallowing noise | Large blank area at column end detected as char | Area > 2×OCR → exclude ROI-boundary-touching components |
-| Distant stroke lost | Right na-stroke filtered out (p78) | `overlap_ocr` components always kept |
+| Distant stroke lost | Right na-stroke filtered out (p78) | merge_radius=50 distance check + claimed_regions |
 | Column-tail false positives | 7 false boxes on P210 column tail | Triple guard: search ≤ 2×avg_h, ink-tail skip, overlap >50% skip |
 | Char split | 枉 split into two boxes (P24) | Gap merge distance 40→80px |
 

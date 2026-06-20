@@ -44,9 +44,10 @@ pipeline.py → _ocr_results.json → review_server.py (GUI校对)
 
 ### `src/char_segmenter.py` — 字符切割（核心）
 - `segment_characters(gray, config)` 调用全部子函数
-- 子函数链：`detect_main_content_bbox` → `get_ocr_char_boxes` → 标点过滤 → `classify_columns` → `split_mixed_columns` → `filter_calligraphy_columns` → `detect_missing_chars_in_gaps` → `refine_char_bbox` → `remove_overlapping_boxes` → 后处理
+- 子函数链：`detect_main_content_bbox` → `get_ocr_char_boxes` → 标点过滤 → `classify_columns` → `split_mixed_columns` → `filter_calligraphy_columns` → `detect_missing_chars_in_gaps` → `refine_char_bbox` → `remove_overlapping_boxes` → 后处理 → 噪声过滤
 - 接受 `layout_direction` 参数适配竖排/横排
 - OCR 模块用 RapidOCR（PP-OCRv5, `return_word_box=True`），字级边界框
+- merge_radius=50（距离检查），median_area≥12000（列过滤），空文字 conf<0.5（噪声过滤）
 
 ### `src/ocr_recognizer.py` — OCR 识别
 - `original_score >= 0.6` 时复用原文，否则重新 OCR

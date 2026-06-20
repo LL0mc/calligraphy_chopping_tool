@@ -139,13 +139,13 @@ Core refinement step — precisely crops each character. Processed top-to-bottom
 3. For each component with area ≥ 20:
    - **Overlaps OCR box** → unconditionally kept.
    - **Punctuation exclusion**: component center inside `punctuation_boxes` AND no OCR overlap → skip.
-   - **Distance check**: distance from OCR center < `merge_radius=50`, OR overlaps OCR box AND distance < `merge_radius/2` → candidate.
+   - **Distance check**: distance from OCR center < `merge_radius=50` → candidate.
    - **Claimed-regions check**: component center inside `claimed_regions` → skip (prevents downstream chars from stealing upstream strokes).
 4. No candidates → return original OCR box.
 5. Merge all candidates: min/max extents, `padding=5`, clamp to image bounds.
 6. **Oversize fallback**: if refined area > 2× OCR area (and OCR area > 1000), exclude components touching the ROI boundary, recompute from internal components only.
 
-**Note:** `overlap_ocr` components are only kept if within `merge_radius/2` distance (prevents adjacent character components from being incorrectly merged into wide PP-OCRv5 detection boxes).
+> Note: Earlier versions used an overlap_ocr distance restriction (extra distance limit when component overlaps OCR box). This was proven to be over-engineering — removing it improved results. The effective mechanisms are merge_radius=50 distance check + claimed_regions prevention.
 
 ### 3i. Deduplication (`remove_overlapping_boxes`)
 
@@ -157,7 +157,11 @@ Core refinement step — precisely crops each character. Processed top-to-bottom
 
 - Per column: compute median area. If a box area > median × 3 (and median > 1000), shrink to `sqrt(median_area)` square, keep center position.
 
-### 3k. Assemble Results
+### 3k. Noise filter
+
+- Empty text + confidence < 0.5 → filter out (PP-OCRv5 full-column noise boxes, area up to 100K+ pixels).
+
+### 3l. Assemble Results
 
 All columns concatenated in reading order (col X descending → row Y ascending).
 

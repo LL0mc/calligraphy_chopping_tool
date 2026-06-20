@@ -281,10 +281,10 @@ python char_viewer.py
 | 标点干扰精炼 | 标点连通分量混入正文字框 | 标点区域置 0 排除 |
 | 后字窃取前字分量 | 上下字共享连通分量 | claimed_regions 逐字声明 |
 | 过大框吞并噪声 | 列末尾大片空白判为一个字 | 面积 > 2×OCR 框时排除接触 ROI 边界的组件 |
-| 远距离笔画丢失 | 右捺笔被过滤（光，第78页） | overlap_ocr 距离 < merge_radius/2 时保留 |
+| 远距离笔画丢失 | 右捺笔被过滤（光，第78页） | merge_radius=50 距离检查 + claimed_regions 防重复 |
 | 列尾误检 | P210 列尾 7 个假阳性 | 三阶段修复：搜索范围 ≤2×avg_height、ink-tail 跳过、重叠 >50% 跳过 |
 | 字符分裂 | 枉 字上下框分离（P24） | 间隙组件合并距离 40→80px |
-| PP-OCRv5 框偏移 | 宽检测框导致 CC 精炼搜到相邻字符 | overlap_ocr 限制在 merge_radius/2 距离内 |
+| PP-OCRv5 框偏移 | 宽检测框导致 CC 精炼搜到相邻字符 | merge_radius 100→50 + claimed_regions 防重复 |
 
 ## 配置参数
 

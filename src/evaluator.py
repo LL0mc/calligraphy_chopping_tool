@@ -159,13 +159,13 @@ def get_submitted_pages():
     return sorted(pages)
 
 
-def evaluate_all(det_dir=None):
+def evaluate_all(det_dir=None, pages=None):
     if det_dir:
         global _det_dir_override
         _det_dir_override = det_dir
-    pages = get_submitted_pages()
+    eval_pages = pages if pages else get_submitted_pages()
     results = []
-    for p in pages:
+    for p in eval_pages:
         r = evaluate_page(p)
         if r:
             results.append(r)
@@ -210,6 +210,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--det-dir', type=str, default=None,
                         help='Detection results directory (default: same as PAGE_DIR)')
+    parser.add_argument('--pages', type=str, default=None,
+                        help='Comma-separated page numbers to evaluate (default: all submitted)')
     args = parser.parse_args()
-    results = evaluate_all(det_dir=args.det_dir)
+    pages = [int(p.strip()) for p in args.pages.split(',')] if args.pages else None
+    results = evaluate_all(det_dir=args.det_dir, pages=pages)
     summarize(results)

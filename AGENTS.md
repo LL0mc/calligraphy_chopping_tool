@@ -2,7 +2,7 @@
 
 ## Core Principles
 - `write` tool is banned for existing files — always `read` then `edit`
-- Pipeline v20: PP-OCRv5 detection + recognition, overlap_ocr distance limit, last-page memory
+- Pipeline v20: PP-OCRv5 detection + recognition, merge_radius=50, noise filter, last-page memory
 - `detect_main_content_bbox` cropping before OCR improves recall on vertical text
 - Dilate kernel: aids feibai stroke detection for localization only; final crop on original image
 - Small-annotation characters merge into main column, never discarded
@@ -28,11 +28,18 @@
 8. **OCR recognition** → `recognize_characters` prefers `original_text` (score≥0.6), re-OCR only when empty
 9. **Dedup** → `remove_overlapping_boxes`: IoU 0.3, keep larger
 10. **Post-process** → per-column outlier shrink: 3× median area threshold
+11. **Noise filter** → remove empty-text low-confidence boxes (PP-OCRv5 full-column noise)
 
 ### Three Key Fixes (2026-05-23)
 1. `ocr_recognizer.py`: prefer `original_text`/`original_score` over re-OCR
 2. `char_segmenter.py`: gap merge distance 40→80
 3. `char_segmenter.py`: column-tail triple guard — search ≤2×avg_h, ink-tail skip, overlap >50% skip
+
+### PP-OCRv5 Adaptation
+- merge_radius 100→50
+- median_area ≥ 12000 列过滤
+- 噪声过滤：空文字 conf<0.5
+- overlap_ocr 限制已移除（经实验验证不影响效果，反而伤害识别）
 
 ## Compose Layout Engine (v20 added)
 - **`src/compose_renderer.py`**: Pillow-based layout engine
@@ -76,7 +83,7 @@
 - **Punctuation-char adhesion**: small marks merge with strokes in binary image
 
 ## Fixed Issues
-- **光** (p78): right na-stroke small component (6×14px), 115px from OCR center > merge_radius=50. Fix: `overlap_ocr` components kept when distance < merge_radius/2
+- **光** (p78): right na-stroke small component (6×14px), 115px from OCR center > merge_radius=50. Fix: merge_radius=50 distance check + claimed_regions 防重复
 - **P24/P184/P210 tail ink false positives**: tail search ≤2×avg_height, P210 -7 false boxes
 - **枉** (p24 split): gap merge distance 40→80, two halves (69.6px apart) merged
 - **口述偏移** (p184 gap false): ink-tail + overlap check excludes 53×23 ink dot

@@ -82,7 +82,7 @@ pdf_renderer.py → page_preprocessor.py → char_segmenter.py → ocr_recognize
 - `box` 为四边形（4 个点），取其 x/y 的 min/max 转为矩形 `(x_min, x_max, y_min, y_max)`。
 - 坐标从裁剪图空间转换回原图空间。
 
-**为什么用 PP-OCRv5？** PP-OCRv5 检测框更宽，能捕获完整字符笔画，减少遗漏。配合 CC refinement 的 overlap_ocr 限制，框定位精度比 PP-OCRv4 提升 56%（8.8px→3.9px）。
+**为什么用 PP-OCRv5？** PP-OCRv5 检测框更宽，能捕获完整字符笔画，减少遗漏。配合 merge_radius=50 的距离检查，框定位精度比 PP-OCRv4 提升 56%（8.8px→3.9px）。
 
 ### 3c. 标点过滤
 
@@ -142,13 +142,12 @@ pdf_renderer.py → page_preprocessor.py → char_segmenter.py → ocr_recognize
    - **与 OCR 框重叠** → 无条件保留。
    - **标点排除**：分量中心在 `punctuation_boxes` 内、且不与 OCR 框重叠 → 跳过。
    - **距离检查**：与 OCR 中心距离 < `merge_radius=50` → 候选。
-   - **重叠检查**：与 OCR 框重叠且距离 < `merge_radius/2` → 候选（防止宽检测框中的相邻字符被错误合并）。
    - **已声明区域检查**：分量中心在 `claimed_regions` 内 → 跳过（防止后字窃取前字笔画）。
 4. 无候选 → 返回原 OCR 框。
 5. 合并所有候选：取 min/max extents，外扩 `padding=5`，裁切到图像边界。
 6. **过大回退**：若精炼框面积 > 2×OCR 框面积（且 OCR 面积 > 1000），排除接触 ROI 边界的组件，仅保留内部组件重新计算。
 
-**注意：** `overlap_ocr` 分量仅在距离 < `merge_radius/2` 时保留（防止 PP-OCRv5 宽检测框中的相邻字符组件被错误合并）。
+> 注：早期版本使用 overlap_ocr 距离限制（组件与 OCR 框重叠时额外限制距离），经实验验证该限制是过度工程化——去掉后效果更好。真正起作用的是 merge_radius=50 的距离检查 + claimed_regions 防重复。
 
 ### 3i. 去重（`remove_overlapping_boxes`）
 
@@ -160,7 +159,11 @@ pdf_renderer.py → page_preprocessor.py → char_segmenter.py → ocr_recognize
 
 - 按列计算面积中位数。若某框面积 > 中位数 × 3（且中位数 > 1000），缩小至 `sqrt(median_area)` 的正方形，保持中心位置。
 
-### 3k. 拼接结果
+### 3k. 噪声过滤
+
+- 空文字 + 置信度 < 0.5 → 过滤（PP-OCRv5 全列噪声框，面积可达 100K+像素）。
+
+### 3l. 拼接结果
 
 所有列按阅读顺序（列 X 降序 → 行 Y 升序）拼为最终列表。
 

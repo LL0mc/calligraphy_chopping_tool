@@ -145,11 +145,10 @@ def refine_char_bbox(gray: np.ndarray, x_min: int, x_max: int, y_min: int, y_max
             continue
         
         # Check distance to center.
-        # Components within merge_radius are included.
-        # Components overlapping OCR box are included only if within merge_radius/2
-        # (to avoid including adjacent characters in wide detection boxes)
+        # All components within merge_radius are candidates.
+        # claimed_regions prevents stealing from adjacent characters.
         dist = ((cx - center_x) ** 2 + (cy - center_y) ** 2) ** 0.5
-        if dist < merge_radius or (overlap_ocr and dist < merge_radius * 0.5):
+        if dist < merge_radius:
             # Skip components already claimed by a previous character in the same column
             if claimed_regions:
                 gcx = search_x1 + cx
