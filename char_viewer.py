@@ -224,5 +224,15 @@ def compose_export_pdf():
 build_index()
 print(f'Char index built: {len(_index)} characters')
 
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    import threading
+    def _exit():
+        import time
+        time.sleep(0.3)
+        os._exit(0)
+    threading.Thread(target=_exit, daemon=True).start()
+    return jsonify({'ok': True, 'm': '服务器即将退出'})
+
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5001, debug=True)

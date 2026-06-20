@@ -279,10 +279,11 @@ body.light .btn-success:hover { background: rgba(52,211,153,0.18); }
 <body>
 
 <div id="tabBar">
-  <a href="/" class="tab">字库浏览</a>
-  <a href="/compose" class="tab active">集字排版</a>
+  <a class="tab" onclick="location.replace('/')" style="cursor:pointer">字库浏览</a>
+  <a class="tab active" onclick="location.replace('/compose')" style="cursor:pointer">集字排版</a>
   <span style="flex:1"></span>
   <button class="tab" id="themeBtn" onclick="toggleTheme()" title="切换浅色/深色模式" style="font-size:18px;line-height:1;padding:8px 12px;background:none;border:none;outline:none;cursor:pointer">🌙</button>
+  <button class="tab" onclick="if(confirm('退出字符查看器？')){fetch('/shutdown',{method:'POST'});setTimeout(()=>window.close(),500)}" title="退出服务器" style="font-size:12px;padding:8px 12px;background:none;border:none;outline:none;cursor:pointer;color:var(--accent-red)">⏻ 退出</button>
 </div>
 
 <div id="main">
