@@ -435,7 +435,7 @@ var PAGE = _PAGE_;
 
 if (location.search.indexOf('script=1') === -1) {
   window.open(location.pathname + '?p=' + PAGE + '&script=1', '_blank');
-  document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:var(--font-ui);color:var(--text-primary)"><div style="text-align:center"><div style="font-size:48px;margin-bottom:16px">↻</div><div style="font-size:18px">正在跳转到新标签...</div><div style="font-size:13px;color:var(--text-muted);margin-top:8px">请关闭此页面</div></div></div>';
+  location.replace('about:blank');
   throw new Error('redirecting');
 }
 
