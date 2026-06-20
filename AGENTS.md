@@ -4,7 +4,7 @@
 - `write` tool is banned for existing files — always `read` then `edit`
 - Pipeline v19: OCR + connectivity-domain refinement for broken strokes (feibai)
 - `detect_main_content_bbox` cropping before OCR improves recall on vertical text
-- Dilate kernel (config param): aids feibai stroke detection for localization only; final crop on original image
+- Dilate kernel: aids feibai stroke detection for localization only; final crop on original image
 - Small-annotation characters merge into main column, never discarded
 - Dedup IoU threshold 0.3, keep larger box
 
@@ -76,7 +76,7 @@
 - **Punctuation-char adhesion**: small marks merge with strokes in binary image
 
 ## Fixed Issues
-- **光** (p78): right na-stroke small component (6×14px), 115px from OCR center > merge_radius=100. Fix: `overlap_ocr` components always kept regardless of distance
+- **光** (p78): right na-stroke small component (6×14px), 115px from OCR center > merge_radius=50. Fix: `overlap_ocr` components kept when distance < merge_radius/2
 - **P24/P184/P210 tail ink false positives**: tail search ≤2×avg_height, P210 -7 false boxes
 - **枉** (p24 split): gap merge distance 40→80, two halves (69.6px apart) merged
 - **口述偏移** (p184 gap false): ink-tail + overlap check excludes 53×23 ink dot
@@ -131,7 +131,7 @@ review_server `/submit` 产出，按阅读顺序编号+字符命名。4px paddin
 
 - 使用 git 分支管理实验（`feat/xxx`）
 - 实验产出写入 `output/exp/{实验名}/`，不写 `output/pages/`
-- 评估器通过 `--page-dir` 参数指向实验目录
+- 评估器通过 `--det-dir` 参数指向实验目录
 - baseline.json 和 corrected.json 只从 `output/pages/` 读取，不修改
 
 ### Obsidian Char DB
