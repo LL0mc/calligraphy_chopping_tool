@@ -48,7 +48,7 @@ def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
         "bbox_padding": 5,
         "merge_radius": 50,
     }
-    characters = segment_characters(original_gray, config)
+    characters = segment_characters(original_gray, config, layout_direction=profile.layout_direction)
     if not characters:
         print("  [跳过] 未检测到字符")
         return None

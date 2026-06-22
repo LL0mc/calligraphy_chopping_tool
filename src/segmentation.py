@@ -3,12 +3,15 @@ import cv2
 import numpy as np
 
 
-def classify_columns(all_chars: list) -> list:
-    """按x中心坐标分列"""
+def classify_columns(all_chars: list, layout_direction: str = "vertical") -> list:
+    """按x中心坐标分列（竖排）或按y中心坐标分行（横排）"""
     if not all_chars:
         return []
 
-    chars_with_center = [(c, (c[0] + c[1]) / 2) for c in all_chars]
+    if layout_direction == "horizontal":
+        chars_with_center = [(c, (c[2] + c[3]) / 2) for c in all_chars]
+    else:
+        chars_with_center = [(c, (c[0] + c[1]) / 2) for c in all_chars]
     chars_with_center.sort(key=lambda x: x[1])
 
     columns = []
@@ -78,13 +81,17 @@ def split_mixed_columns(columns: list, size_threshold: int = 120) -> list:
 
 def filter_calligraphy_columns(columns: list, min_chars: int = 2,
                                  min_col_width: int = 130,
+                                 layout_direction: str = "vertical",
                                  min_char_width: int = None, min_char_height: int = None,
                                  min_annotation_width: int = None, min_annotation_height: int = None,
                                  **kwargs) -> list:
     """过滤书法列：列宽 >= min_col_width 且中位字符面积 >= 12000px"""
     result = []
     for col_idx, x_min, x_max, chars in columns:
-        col_width = x_max - x_min
+        if layout_direction == "horizontal":
+            col_width = max(c[3] - c[2] for c in chars) if chars else 0
+        else:
+            col_width = x_max - x_min
         if col_width < min_col_width or len(chars) < min_chars:
             continue
         areas = [(c[1]-c[0]) * (c[3]-c[2]) for c in chars]
@@ -102,28 +109,40 @@ def filter_calligraphy_columns(columns: list, min_chars: int = 2,
 
 
 def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: int, x_max: int,
+                                   layout_direction: str = "vertical",
                                    gap_threshold: int = 80, binary_threshold: int = 140,
                                    min_area: int = 300) -> list:
     """在字符间隙中检测遗漏的字符（包括列末尾）"""
     missing = []
     h, w = gray.shape
-    
+
+    is_horizontal = layout_direction == "horizontal"
+
     # Check gaps between characters
     for i in range(len(sorted_chars) - 1):
         curr = sorted_chars[i]
         next_char = sorted_chars[i + 1]
-        
-        gap_start = curr[3]  # y_max of current
-        gap_end = next_char[2]  # y_min of next
+
+        if is_horizontal:
+            gap_start = curr[1]  # x_max of current
+            gap_end = next_char[0]  # x_min of next
+        else:
+            gap_start = curr[3]  # y_max of current
+            gap_end = next_char[2]  # y_min of next
         gap_size = gap_end - gap_start
-        
+
         if gap_size < gap_threshold:
             continue
-        
+
         # Extract gap region
-        search_x1 = max(0, x_min - 20)
-        search_x2 = min(w, x_max + 20)
-        roi = gray[gap_start:gap_end, search_x1:search_x2]
+        if is_horizontal:
+            search_y1 = max(0, x_min - 20)  # x_min reused as y_min boundary for horizontal
+            search_y2 = min(h, x_max + 20)
+            roi = gray[search_y1:search_y2, gap_start:gap_end]
+        else:
+            search_x1 = max(0, x_min - 20)
+            search_x2 = min(w, x_max + 20)
+            roi = gray[gap_start:gap_end, search_x1:search_x2]
         
         # Check dark pixel ratio
         dark_mask = roi < binary_threshold
@@ -142,25 +161,30 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
             area = stats[j, cv2.CC_STAT_AREA]
             if area < min_area:
                 continue
-            
-            x = stats[j, cv2.CC_STAT_LEFT] + search_x1
-            y = stats[j, cv2.CC_STAT_TOP] + gap_start
+
             bw = stats[j, cv2.CC_STAT_WIDTH]
             bh = stats[j, cv2.CC_STAT_HEIGHT]
-            
-            # Check if this component is within the column's x range
-            if x + bw < x_min - 10 or x > x_max + 10:
-                continue
-            
+
+            if is_horizontal:
+                x = stats[j, cv2.CC_STAT_LEFT] + gap_start
+                y = stats[j, cv2.CC_STAT_TOP] + search_y1
+                if y + bh < x_min - 10 or y > x_max + 10:
+                    continue
+            else:
+                x = stats[j, cv2.CC_STAT_LEFT] + search_x1
+                y = stats[j, cv2.CC_STAT_TOP] + gap_start
+                if x + bw < x_min - 10 or x > x_max + 10:
+                    continue
+
             # Filter by aspect ratio
             aspect_ratio = bw / bh if bh > 0 else 0
             if aspect_ratio < 0.2 or aspect_ratio > 5.0:
                 continue
-            
+
             # Skip small components (likely punctuation residue)
             if bw < 50 or bh < 50:
                 continue
-            
+
             candidates.append((x, x + bw, y, y + bh, area, bw, bh))
         
         # Merge nearby candidates
@@ -208,23 +232,38 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
         for x1, x2, y1, y2, area, bw, bh in merged:
             missing.append((x1, x2, y1, y2, '?', 0.0, -1, -1))
     
-    # Check for missing character at the end of the column
+    # Check for missing character at the end of the column/row
     if sorted_chars:
         last_char = sorted_chars[-1]
-        gap_start = last_char[3]
-        
-        # Estimate gap size based on average character height
-        avg_height = np.mean([c[3] - c[2] for c in sorted_chars])
-        
-        # 限制搜索高度为2倍平均字高，避免远距离墨迹干扰
-        gap_end = min(h, gap_start + int(2 * avg_height))
-        gap_size = gap_end - gap_start
-        
-        # If there's enough space for at least half a character
-        if gap_size > avg_height * 0.5:
-            search_x1 = max(0, x_min - 20)
-            search_x2 = min(w, x_max + 20)
-            roi = gray[gap_start:gap_end, search_x1:search_x2]
+
+        if is_horizontal:
+            gap_start = last_char[1]  # x_max of last char
+            avg_dim = np.mean([c[1] - c[0] for c in sorted_chars])
+            gap_end = min(w, gap_start + int(2 * avg_dim))
+            gap_size = gap_end - gap_start
+
+            if gap_size > avg_dim * 0.5:
+                search_y1 = max(0, x_min - 20)
+                search_y2 = min(h, x_max + 20)
+                roi = gray[search_y1:search_y2, gap_start:gap_end]
+                use_x_range = False  # horizontal: check y range
+            else:
+                roi = None
+        else:
+            gap_start = last_char[3]  # y_max of last char
+            avg_dim = np.mean([c[3] - c[2] for c in sorted_chars])
+            gap_end = min(h, gap_start + int(2 * avg_dim))
+            gap_size = gap_end - gap_start
+
+            if gap_size > avg_dim * 0.5:
+                search_x1 = max(0, x_min - 20)
+                search_x2 = min(w, x_max + 20)
+                roi = gray[gap_start:gap_end, search_x1:search_x2]
+                use_x_range = True
+            else:
+                roi = None
+
+        if roi is not None and roi.size > 0:
             
             dark_mask = roi < binary_threshold
             dark_ratio = np.sum(dark_mask) / dark_mask.size
@@ -236,23 +275,30 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
                 candidates = []
                 for j in range(1, num_labels):
                     area = stats[j, cv2.CC_STAT_AREA]
-                    if area < min_area * 0.5:  # Allow smaller area for last char
+                    if area < min_area * 0.5:
                         continue
-                    
-                    x = stats[j, cv2.CC_STAT_LEFT] + search_x1
-                    y = stats[j, cv2.CC_STAT_TOP] + gap_start
+
                     bw = stats[j, cv2.CC_STAT_WIDTH]
                     bh = stats[j, cv2.CC_STAT_HEIGHT]
-                    
-                    if x + bw < x_min - 10 or x > x_max + 10:
-                        continue
-                    
-                    # Ink-tail check: candidate too close to last char (< 25% avg_height)
-                    inter_gap = y - last_char[3]
-                    if inter_gap >= 0 and inter_gap < avg_height * 0.25:
-                        continue
-                    
-                    # Overlap check: candidate significantly overlaps last char
+
+                    if is_horizontal:
+                        x = stats[j, cv2.CC_STAT_LEFT] + gap_start
+                        y = stats[j, cv2.CC_STAT_TOP] + search_y1
+                        if y + bh < x_min - 10 or y > x_max + 10:
+                            continue
+                        inter_gap = x - last_char[1]
+                        if inter_gap >= 0 and inter_gap < avg_dim * 0.25:
+                            continue
+                    else:
+                        x = stats[j, cv2.CC_STAT_LEFT] + search_x1
+                        y = stats[j, cv2.CC_STAT_TOP] + gap_start
+                        if x + bw < x_min - 10 or x > x_max + 10:
+                            continue
+                        inter_gap = y - last_char[3]
+                        if inter_gap >= 0 and inter_gap < avg_dim * 0.25:
+                            continue
+
+                    # Overlap check
                     inter_x1 = max(x, last_char[0])
                     inter_x2 = min(x + bw, last_char[1])
                     inter_y1 = max(y, last_char[2])
@@ -262,15 +308,14 @@ def detect_missing_chars_in_gaps(gray: np.ndarray, sorted_chars: list, x_min: in
                     inter_area = inter_w * inter_h
                     if inter_area > 0 and inter_area / area > 0.5:
                         continue
-                    
+
                     aspect_ratio = bw / bh if bh > 0 else 0
                     if aspect_ratio < 0.2 or aspect_ratio > 5.0:
                         continue
-                    
-                    # Skip small components (likely punctuation residue)
+
                     if bw < 50 or bh < 50:
                         continue
-                    
+
                     candidates.append((x, x + bw, y, y + bh, area, bw, bh))
                 
                 if candidates:

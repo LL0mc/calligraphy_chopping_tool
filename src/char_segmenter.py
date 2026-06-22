@@ -13,7 +13,7 @@ from src.refinement import (
 )
 
 
-def segment_characters(gray: np.ndarray, config: dict = None) -> list:
+def segment_characters(gray: np.ndarray, config: dict = None, layout_direction: str = "vertical") -> list:
     """主流程：OCR定位 + 连通域精确裁剪（不重叠）"""
     if config is None:
         config = {}
@@ -45,7 +45,7 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     
     print(f"[OCR] 检测到 {len(all_chars)} 个单字（已过滤标点，排除 {len(punctuation_boxes)} 个标点区域）")
 
-    columns = classify_columns(all_chars)
+    columns = classify_columns(all_chars, layout_direction=layout_direction)
     print(f"[分列] 检测到 {len(columns)} 列")
 
     split_cols = split_mixed_columns(columns, size_threshold=config.get("size_threshold", 120))
@@ -54,7 +54,8 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     calligraphy_columns = filter_calligraphy_columns(
         split_cols,
         min_chars=config.get("min_chars_per_col", 3),
-        min_col_width=config.get("min_col_width", 130)
+        min_col_width=config.get("min_col_width", 130),
+        layout_direction=layout_direction
     )
     print(f"[过滤] 保留 {len(calligraphy_columns)} 个书法列")
 
@@ -66,6 +67,7 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
         # 检测遗漏字符
         missing_chars = detect_missing_chars_in_gaps(
             gray, sorted_chars, x_min, x_max,
+            layout_direction=layout_direction,
             gap_threshold=config.get("gap_threshold", 100),
             binary_threshold=config.get("binary_threshold", 140),
             min_area=config.get("missing_char_min_area", 500)
