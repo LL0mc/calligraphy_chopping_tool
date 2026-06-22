@@ -7,7 +7,8 @@ sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import cv2
-from config import PDF_PATH, PAGES_DIR, DPI_SCALE, BASE_DIR
+from config import DPI_SCALE, BASE_DIR
+from src.copybook_config import get_profile
 from src.pdf_renderer import render_pdf_page
 from src.page_preprocessor import preprocess_page
 from src.char_segmenter import (
@@ -21,18 +22,20 @@ from src.confidence_handler import export_results
 
 def process_page(page_num, poems_data=None, ocr_engine="rapidocr",
                  expand_strategy="square", expand_padding=15,
-                 remove_lines=False, output_dir=None):
+                 remove_lines=False, output_dir=None, profile=None):
     """处理单页：渲染 → 切割 → OCR → 校对"""
-    pages_dir = output_dir or PAGES_DIR
+    if profile is None:
+        profile = get_profile("wys_hongloumeng")
+    pages_dir = output_dir or profile.pages_dir
     page_idx = page_num - 1
     print(f"\n=== 第{page_num}页 ===")
 
     # Step 1: Render
-    page_image_path = render_pdf_page(PDF_PATH, page_idx, PAGES_DIR, DPI_SCALE)
+    page_image_path = render_pdf_page(profile.pdf_path, page_idx, profile.pages_dir, DPI_SCALE)
     original_gray = cv2.imread(page_image_path, cv2.IMREAD_GRAYSCALE)
 
     # Step 2: Preprocess
-    preprocessed_path = os.path.join(PAGES_DIR, f"page_{page_num:03d}_processed.png")
+    preprocessed_path = os.path.join(pages_dir, f"page_{page_num:03d}_processed.png")
     preprocess_page(page_image_path, preprocessed_path, remove_lines=remove_lines)
 
     # Step 3: Segment characters
@@ -73,7 +76,11 @@ def main():
     parser.add_argument("--no-correct", action="store_true", help="（已弃用）")
     parser.add_argument("--output-dir", type=str, default=None,
                         help="实验输出目录（默认写入 output/pages/）")
+    parser.add_argument("--profile", type=str, default="wys_hongloumeng",
+                        help="书帖配置名称（默认 wys_hongloumeng）")
     args = parser.parse_args()
+
+    profile = get_profile(args.profile)
 
     out_dir = None
     if args.output_dir:
@@ -82,7 +89,7 @@ def main():
 
     for page_num in args.pages:
         try:
-            process_page(page_num, output_dir=out_dir)
+            process_page(page_num, output_dir=out_dir, profile=profile)
         except Exception as e:
             import traceback
             print(f"  [错误] 第{page_num}页: {e}")
