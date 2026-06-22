@@ -1,93 +1,19 @@
 """校对服务器 v4 - orig_idx 跟踪 + 提交功能"""
-import sys, os, json, cv2, numpy as np, base64, traceback, subprocess, time
+import sys, os, json, cv2, numpy as np, traceback, subprocess, time
 sys.stdout.reconfigure(encoding='utf-8')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, request, jsonify
 from config import PAGES_DIR, CALLIGRAPHER, SOURCE_TEXT, CROPPED_DIR, CHAR_DB_DIR, PDF_PATH
 from PIL import Image, ImageDraw, ImageFont
+from src.data import load_data, load_img, img_to_b64, get_clean_data, get_last_page, save_last_page, load_clean, drop_cache
+from src.obsidian import sync_obsidian_entries, cleanup_page_entries
 
 app = Flask(__name__)
-_clean_cache = {}
 FONT_PATH = r'C:\Windows\Fonts\msyh.ttc'
-_LAST_PAGE_FILE = os.path.join(PAGES_DIR, '.last_page')
-
-def get_last_page():
-    try:
-        if os.path.exists(_LAST_PAGE_FILE):
-            with open(_LAST_PAGE_FILE, 'r') as f:
-                return int(f.read().strip())
-    except: pass
-    return 24
-
-def save_last_page(num):
-    try:
-        with open(_LAST_PAGE_FILE, 'w') as f:
-            f.write(str(num))
-    except: pass
 
 def get_font():
     try: return ImageFont.truetype(FONT_PATH, 14)
     except: return ImageFont.load_default()
-
-def load_data(page_num):
-    """Load OCR data, then overlay corrections by orig_idx."""
-    raw_path = os.path.join(PAGES_DIR, f"page_{page_num:03d}_ocr_results.json")
-    if not os.path.exists(raw_path):
-        return None
-    with open(raw_path, encoding='utf-8') as f:
-        raw = json.load(f)
-    for i, item in enumerate(raw):
-        item['orig_idx'] = i
-
-    corr_path = os.path.join(PAGES_DIR, f"page_{page_num:03d}_corrected.json")
-    if os.path.exists(corr_path):
-        with open(corr_path, encoding='utf-8') as f:
-            corr = json.load(f)
-        for c in corr:
-            oi = c.get('orig_idx', -1)
-            if c.get('deleted'):
-                if 0 <= oi < len(raw):
-                    raw[oi]['deleted'] = True
-            elif c.get('added'):
-                raw.append(c)
-            elif 0 <= oi < len(raw):
-                for key, val in c.items():
-                    raw[oi][key] = val
-    return raw
-
-def load_img(page_num):
-    for name in [f"page_{page_num:03d}_processed.png", f"page_{page_num:03d}.png"]:
-        p = os.path.join(PAGES_DIR, name)
-        if os.path.exists(p):
-            img = cv2.imread(p)
-            if img is not None:
-                return img
-    return None
-
-def img_to_b64(img):
-    _, buf = cv2.imencode('.png', img)
-    return base64.b64encode(buf).decode()
-
-def get_clean_data(data):
-    clean, mapping = [], []
-    for i, d in enumerate(data):
-        if d.get('deleted'):
-            continue
-        if d.get('x') and d.get('w') and d['w'] > 5:
-            clean.append(dict(d))
-            mapping.append(i)
-    return clean, mapping
-
-def load_clean(page_num):
-    if page_num not in _clean_cache:
-        raw = load_data(page_num)
-        if raw is None: return None, None, None
-        clean, mapping = get_clean_data(raw)
-        _clean_cache[page_num] = (raw, clean, mapping)
-    return _clean_cache[page_num]
-
-def drop_cache(page_num):
-    _clean_cache.pop(page_num, None)
 
 def annotate_image(data, page_img, selected=0, server_scale=1.0):
     if server_scale < 1:
@@ -1231,72 +1157,8 @@ def submit_page():
         # Build full text in reading order for context
         full_text = [e['char'] for e in char_entries]
 
-        # Update Obsidian character database — collect per char then write once
-        base_rel = os.path.join(CALLIGRAPHER, SOURCE_TEXT)
-        note_dir = os.path.join(CHAR_DB_DIR, base_rel)
-        os.makedirs(note_dir, exist_ok=True)
-
-        # Group entries by char
-        from collections import defaultdict
-        char_groups = defaultdict(list)
-        seen = set()
-        for e in char_entries:
-            ch = e['char']
-            if ch == '?' or ch == 'unk':
-                continue
-            # Deduplicate same img link per char per page
-            key = (ch, e['seq'])
-            if key not in seen:
-                seen.add(key)
-                char_groups[ch].append(e)
-
-        for ch, entries in char_groups.items():
-            note_path = os.path.join(note_dir, f"{ch}.md")
-            rows = []
-            for e in entries:
-                img_link = f"![[{e['rel_path'].replace(os.sep, '/')}]]"
-                idx = e['seq'] - 1
-                before = ''.join(full_text[max(0, idx-3):idx])
-                after = ''.join(full_text[idx+1:idx+4])
-                ctx = ''
-                if before: ctx += before + ' '
-                ctx += '[' + ch + ']'
-                if after: ctx += ' ' + after
-                rows.append(f"| {page} | {e['seq']} | {img_link} | {e['confidence']:.2f} | {ctx} |")
-
-            # Read existing content if note exists (only keep header/frontmatter)
-            existing_rows = []
-            if os.path.exists(note_path):
-                with open(note_path, 'r', encoding='utf-8') as f:
-                    existing = f.read()
-                # Extract existing rows (skip header and separator)
-                in_table = False
-                for line in existing.splitlines():
-                    if line.startswith('|') and '|---|---|' not in line and in_table:
-                        existing_rows.append(line)
-                    elif '|---|---|' in line:
-                        in_table = True
-                # Remove rows from this page to avoid dupes on re-submit
-                existing_rows = [r for r in existing_rows if not r.startswith(f'| {page} |')]
-
-            all_rows = existing_rows + rows
-            table = "\n".join([
-                f"---",
-                f'char: "{ch}"',
-                f'calligrapher: "{CALLIGRAPHER}"',
-                f'source: "{SOURCE_TEXT}"',
-                f"---",
-                f"",
-                f"# {ch}",
-                f"",
-                f"| 页面 | 序号 | 图片 | 置信度 | 上下文 |",
-                f"|------|------|------|--------|--------|",
-            ])
-            if all_rows:
-                table += "\n" + "\n".join(all_rows) + "\n"
-
-            with open(note_path, 'w', encoding='utf-8') as f:
-                f.write(table)
+        # Update Obsidian character database
+        sync_obsidian_entries(char_entries, full_text, page, CALLIGRAPHER, SOURCE_TEXT, CHAR_DB_DIR)
 
         # Mark as reviewed
         marker = os.path.join(PAGES_DIR, f"page_{page:03d}_reviewed.json")
@@ -1414,30 +1276,8 @@ def redetect_page():
         if os.path.exists(skipped_path):
             os.remove(skipped_path)
 
-        # Clear cropped images for this page
-        page_cropped_dir = os.path.join(CROPPED_DIR, CALLIGRAPHER, SOURCE_TEXT, f"page_{page:03d}")
-        if os.path.exists(page_cropped_dir):
-            import shutil
-            shutil.rmtree(page_cropped_dir)
-
-        # Clean Obsidian DB entries for this page
-        base_rel = os.path.join(CALLIGRAPHER, SOURCE_TEXT)
-        note_dir = os.path.join(CHAR_DB_DIR, base_rel)
-        if os.path.exists(note_dir):
-            for fname in os.listdir(note_dir):
-                if not fname.endswith('.md'):
-                    continue
-                note_path = os.path.join(note_dir, fname)
-                with open(note_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                # Remove rows for this page
-                new_lines = []
-                for line in content.splitlines():
-                    if line.startswith(f'| {page} |'):
-                        continue
-                    new_lines.append(line)
-                with open(note_path, 'w', encoding='utf-8') as f:
-                    f.write('\n'.join(new_lines) + '\n')
+        # Clear cropped images and Obsidian entries for this page
+        cleanup_page_entries(page, CALLIGRAPHER, SOURCE_TEXT, CHAR_DB_DIR, CROPPED_DIR)
 
         # Drop cache
         drop_cache(page)
