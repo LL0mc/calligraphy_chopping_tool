@@ -17,6 +17,11 @@ class CharBox:
     text: str = ""
     score: float = 0.0
 
+    def __getitem__(self, idx):
+        """Backwards-compatible tuple-style access for legacy consumers."""
+        return (self.x, self.y, self.w, self.h, self.img, self.area,
+                self.col_idx, self.row_idx, self.text, self.score)[idx]
+
     def to_dict(self) -> dict:
         return {
             'x': self.x, 'y': self.y, 'w': self.w, 'h': self.h,

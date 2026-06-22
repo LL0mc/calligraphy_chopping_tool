@@ -2,6 +2,7 @@
 import os
 import cv2
 import numpy as np
+from src.types import CharBox
 
 
 def detect_main_content_bbox(gray: np.ndarray, min_density_ratio: float = 0.15, window: int = 100) -> tuple:
@@ -557,9 +558,11 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
             area = new_w * new_h
             char_img = gray[new_y:new_y+new_h, new_x:new_x+new_w]
 
-            all_characters.append((
-                new_x, new_y, new_w, new_h, char_img, area,
-                new_col_idx, row_idx, text, score
+            all_characters.append(CharBox(
+                x=new_x, y=new_y, w=new_w, h=new_h,
+                img=char_img, area=area,
+                col_idx=new_col_idx, row_idx=row_idx,
+                text=text, score=score,
             ))
 
         print(f"[切割] 列 {new_col_idx + 1} (x={x_min}-{x_max}): {len(sorted_chars)} 个字符")
@@ -572,21 +575,21 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     # 后处理：过滤噪声框（空文字低置信度 + 异常小框）
     col_chars = {}
     for char in all_characters:
-        col_idx = char[6]
+        col_idx = char.col_idx
         if col_idx not in col_chars:
             col_chars[col_idx] = []
         col_chars[col_idx].append(char)
 
     cleaned = []
     for col_idx, chars in col_chars.items():
-        areas = [c[2] * c[3] for c in chars]
+        areas = [c.area for c in chars]
         if not areas:
             continue
         median_area = np.median(areas)
         for char in chars:
-            text = char[8]
-            score = char[9]
-            area = char[2] * char[3]
+            text = char.text
+            score = char.score
+            area = char.area
             if not text.strip() and score < 0.5:
                 print(f"[过滤] 列 {col_idx + 1}: 空文字低置信框 (conf={score:.2f}, area={area:.0f})")
                 continue
@@ -599,106 +602,35 @@ def segment_characters(gray: np.ndarray, config: dict = None) -> list:
     return all_characters
 
 
-def save_characters(characters: list, output_dir: str, page_num: int, pad_size: int = 10) -> list:
-    os.makedirs(output_dir, exist_ok=True)
-    saved_paths = []
-
-    for x, y, w, h, char_img, area, col_idx, row_idx, text, score in characters:
-        char_size = max(w, h) + pad_size * 2
-        bg = np.full((char_size, char_size), 255, dtype=np.uint8)
-
-        offset_x = (char_size - w) // 2
-        offset_y = (char_size - h) // 2
-        bg[offset_y:offset_y + h, offset_x:offset_x + w] = char_img
-
-        filename = f"page{page_num:03d}_col{col_idx+1:02d}_row{row_idx+1:02d}.png"
-        filepath = os.path.join(output_dir, filename)
-        cv2.imwrite(filepath, bg)
-        saved_paths.append(filepath)
-
-    return saved_paths
-
-
-def compute_iou(box1: tuple, box2: tuple) -> float:
-    """计算两个框的IoU (x, y, w, h)"""
-    x1_1, y1_1, w1, h1 = box1
-    x1_2, y1_2, w2, h2 = box2
-    x2_1, y2_1 = x1_1 + w1, y1_1 + h1
-    x2_2, y2_2 = x1_2 + w2, y1_2 + h2
-    
-    inter_x1 = max(x1_1, x1_2)
-    inter_y1 = max(y1_1, y1_2)
+def compute_iou(box1: CharBox, box2: CharBox) -> float:
+    """计算两个框的IoU"""
+    x2_1, y2_1 = box1.x + box1.w, box1.y + box1.h
+    x2_2, y2_2 = box2.x + box2.w, box2.y + box2.h
+    inter_x1 = max(box1.x, box2.x)
+    inter_y1 = max(box1.y, box2.y)
     inter_x2 = min(x2_1, x2_2)
     inter_y2 = min(y2_1, y2_2)
-    
     inter_w = max(0, inter_x2 - inter_x1)
     inter_h = max(0, inter_y2 - inter_y1)
     inter_area = inter_w * inter_h
-    
-    area1 = w1 * h1
-    area2 = w2 * h2
-    union_area = area1 + area2 - inter_area
-    
+    union_area = box1.area + box2.area - inter_area
     return inter_area / union_area if union_area > 0 else 0
 
 
-def remove_overlapping_boxes(characters: list, iou_threshold: float = 0.3) -> list:
+def remove_overlapping_boxes(characters: list[CharBox], iou_threshold: float = 0.3) -> list[CharBox]:
     """移除重叠的字符框，保留面积较大的框"""
     if not characters:
         return []
-    
-    # 按面积降序排序
-    sorted_chars = sorted(characters, key=lambda c: c[2] * c[3], reverse=True)
-    
+    sorted_chars = sorted(characters, key=lambda c: c.area, reverse=True)
     keep = []
     for char in sorted_chars:
-        box = (char[0], char[1], char[2], char[3])
         is_overlap = False
         for kept in keep:
-            kept_box = (kept[0], kept[1], kept[2], kept[3])
-            iou = compute_iou(box, kept_box)
+            iou = compute_iou(char, kept)
             if iou > iou_threshold:
                 is_overlap = True
                 break
         if not is_overlap:
             keep.append(char)
-    
-    # 按列和行重新排序
-    keep.sort(key=lambda c: (c[6], c[7]))
+    keep.sort(key=lambda c: (c.col_idx, c.row_idx))
     return keep
-
-
-def draw_character_boxes(original_image: np.ndarray, characters: list,
-                         columns: list = None, output_path: str = None) -> np.ndarray:
-    color_img = cv2.cvtColor(original_image, cv2.COLOR_GRAY2BGR)
-
-    if columns:
-        for col_start, col_end in columns:
-            cv2.line(color_img, (col_start, 0), (col_start, original_image.shape[0]), (0, 0, 255), 2)
-            cv2.line(color_img, (col_end, 0), (col_end, original_image.shape[0]), (0, 0, 255), 2)
-
-    colors = [(0, 255, 0), (255, 0, 0), (0, 0, 255), (255, 255, 0),
-              (255, 0, 255), (0, 255, 255), (128, 128, 255)]
-
-    col_dict = {}
-    for char in characters:
-        col_idx = char[6]
-        if col_idx not in col_dict:
-            col_dict[col_idx] = []
-        col_dict[col_idx].append(char)
-
-    for col_idx, col_chars in col_dict.items():
-        color = colors[col_idx % len(colors)]
-        for char in col_chars:
-            x, y, w, h = char[0], char[1], char[2], char[3]
-            score = char[9] if len(char) > 9 else 0
-
-            cv2.rectangle(color_img, (x, y), (x + w, y + h), color, 2)
-            label = f"{score:.2f}"
-            cv2.putText(color_img, label, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
-
-    if output_path:
-        cv2.imwrite(output_path, color_img)
-        print(f"[可视化] 保存边界框图: {output_path}")
-
-    return color_img
