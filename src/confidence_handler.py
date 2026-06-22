@@ -18,8 +18,8 @@ def classify_by_confidence(ocr_results: list,
     result = {'high': [], 'medium': [], 'low': [], 'unrecognized': []}
     
     for r in ocr_results:
-        text = r['ocr_text']
-        score = r['ocr_score']
+        text = r.ocr_text
+        score = r.ocr_score
         
         if not text:
             result['unrecognized'].append(r)
@@ -53,21 +53,21 @@ def print_review_list(classified: Dict[str, list]):
     if classified['medium']:
         print("\n  中等置信度 (建议复核):")
         for r in classified['medium']:
-            text = r['ocr_text']
-            score = r['ocr_score']
-            print(f"    列{r['col_idx']+1} 行{r['row_idx']+1}: '{text}' ({score:.2f})")
+            text = r.ocr_text
+            score = r.ocr_score
+            print(f"    列{r.col_idx+1} 行{r.row_idx+1}: '{text}' ({score:.2f})")
     
     if classified['low']:
         print("\n  低置信度 (需要校正):")
         for r in classified['low']:
-            text = r['ocr_text']
-            score = r['ocr_score']
-            print(f"    列{r['col_idx']+1} 行{r['row_idx']+1}: '{text}' ({score:.2f})")
+            text = r.ocr_text
+            score = r.ocr_score
+            print(f"    列{r.col_idx+1} 行{r.row_idx+1}: '{text}' ({score:.2f})")
     
     if classified['unrecognized']:
         print("\n  未识别 (需要人工输入):")
         for r in classified['unrecognized']:
-            print(f"    列{r['col_idx']+1} 行{r['row_idx']+1}: ? (score={r['ocr_score']:.2f})")
+            print(f"    列{r.col_idx+1} 行{r.row_idx+1}: ? (score={r.ocr_score:.2f})")
 
 
 def export_results(ocr_results: list, output_path: str):
@@ -88,12 +88,12 @@ def export_results(ocr_results: list, output_path: str):
     data = []
     for r in ocr_results:
         data.append({
-            'col': int(r['col_idx'] + 1),
-            'row': int(r['row_idx'] + 1),
-            'text': r['ocr_text'],
-            'confidence': float(r['ocr_score']),
-            'x': int(r['x']), 'y': int(r['y']), 'w': int(r['w']), 'h': int(r['h']),
-            'expand_strategy': r['expand_strategy']
+            'col': int(r.col_idx + 1),
+            'row': int(r.row_idx + 1),
+            'text': r.ocr_text,
+            'confidence': float(r.ocr_score),
+            'x': int(r.x), 'y': int(r.y), 'w': int(r.w), 'h': int(r.h),
+            'expand_strategy': r.expand_strategy
         })
     
     with open(output_path, 'w', encoding='utf-8') as f:
