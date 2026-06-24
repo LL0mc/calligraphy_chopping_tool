@@ -15,3 +15,6 @@ archive/
 # IDE
 .vscode/
 .idea/
+
+# Agent memory
+.mimocode/
