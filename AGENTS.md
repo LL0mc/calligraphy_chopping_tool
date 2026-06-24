@@ -41,7 +41,9 @@
 - 噪声过滤：空文字 conf<0.5
 - overlap_ocr 限制已移除（经实验验证不影响效果，反而伤害识别）
 
-### v4 vs v5 实验结论（29 页基线）
+### v4 vs v5 实验结论（29 页基线，历史数据）
+
+> **注意**：以下数据基于旧评估器和旧页面集（29 页），仅供参考。当前评估使用 GT 快照（`page_N_gt.json`），页面集已扩展到 31 页。
 
 | 指标 | v4 基线 | v5 最终方案 | 变化 |
 |------|--------|-----------|------|
@@ -110,14 +112,17 @@
 ## Architecture
 ### Overview
 ```
-pipeline.py → _ocr_results.json → review_server.py (GUI review)
-                                         ↓ submit
-                              /submit → sliced images + Obsidian char DB
+pipeline.py → ocr_results.json → review_server.py (GUI review)
+                                        ↓ submit
+                            1. gt.json（corrected 真值快照）
+                            2. sliced images + Obsidian char DB
                                               ↓
                               char_viewer.py (port 5001)
                                 ├── / (char browser, Fabric.js)
                                 └── /compose (layout engine, Pillow)
                                      └── export PNG / PDF
+
+evaluator.py → GT snapshot vs pipeline output → score
 ```
 
 ### Output Directory Structure
@@ -125,7 +130,8 @@ pipeline.py → _ocr_results.json → review_server.py (GUI review)
 ```
 output/
 ├── pages/          ← page-level data (pipeline + review_server 读写)
-└── cropped/        ← review_server submit 产出的裁剪字符图（仅供 char_viewer/compose 读）
+├── cropped/        ← review_server submit 产出的裁剪字符图（仅供 char_viewer/compose 读）
+└── exp/            ← 实验产出（各实验独立子目录，不碰生产数据）
 ```
 
 #### `output/pages/` — 页面数据
@@ -134,11 +140,13 @@ output/
 |------|--------|--------|------|
 | `page_{num}.png` | pipeline | review_server | PDF 渲染原图 |
 | `page_{num}_processed.png` | pipeline | review_server | 预处理后（增强对比度+内容裁剪） |
-| `page_{num}_ocr_results.json` | pipeline | review_server, evaluator | **生产文件** — 当前 OCR 结果 |
-| `page_{num}_ocr_results_baseline.json` | 手动 copy | evaluator | **不可变快照** — GT 基线 |
-| `page_{num}_corrected.json` | review_server | evaluator, load_data() | 人工修正（文字/增删框） |
-| `page_{num}_reviewed.json` | review_server | evaluator | 提交标记 |
+| `page_{num}_ocr_results.json` | pipeline | review_server, evaluator | **可变** — 当前 pipeline 输出（实验时写入 exp/ 目录） |
+| `page_{num}_gt.json` | review_server submit | evaluator | **不可变快照** — 人工审核后的真值（从 corrected 构建） |
+| `page_{num}_corrected.json` | review_server | review_server submit | 人工修正（增删改框+文字） |
+| `page_{num}_reviewed.json` | review_server | review_server | 提交标记 |
 | `page_{num}_skipped.json` | review_server | review_server | 跳过标记 |
+
+> **注意**：gt.json 在 submit 时自动生成。baseline 存放在 `output/exp/{实验名}/`，不在 pages/ 中。
 
 #### `output/cropped/` — 裁剪字符图
 
@@ -155,8 +163,19 @@ review_server `/submit` 产出，按阅读顺序编号+字符命名。4px paddin
 - 实验产出写入 `output/exp/{实验名}/`，不写 `output/pages/`
 - **`python pipeline.py N` 会覆盖 `output/pages/page_N_ocr_results.json`（生产数据）**。实验必须用 `python pipeline.py N --output-dir output/exp/{实验名}/`
 - 评估器通过 `--det-dir` 参数指向实验目录
-- baseline.json 和 corrected.json 只从 `output/pages/` 读取，不修改
-- 如误覆盖生产数据，从 `_ocr_results_baseline.json` 恢复
+- 如误覆盖生产数据，重新运行 pipeline 恢复
+
+### Evaluator
+
+评估器（`src/evaluator.py`）对比 GT 快照与 pipeline 输出：
+
+- **GT 来源**：`page_N_gt.json`（不可变快照，submit 时自动生成）
+- **Detection 来源**：`page_N_ocr_results.json`（pipeline 输出，可变）
+- **匹配算法**：Hungarian 最优匹配（中心距离 ≤ 60px）
+- **成本模型**：边缘偏差 >3px 扣 0.1/px，文字不同扣 2，漏检扣 8，误检扣 1
+- **实验对比**：`python src/evaluator.py --det-dir output/exp/{实验名}/`
+
+详见 `docs/experiment_workflow.md`。
 
 ### Obsidian Char DB
 ```
@@ -185,6 +204,8 @@ One note per char. Frontmatter: char/calligrapher/source for Dataview. Table of 
 - Char viewer: `python char_viewer.py` → http://127.0.0.1:5001/
 - Compose: http://127.0.0.1:5001/compose
 - Pipeline single page: `python pipeline.py N --no-correct`
+- Evaluate: `python src/evaluator.py [--det-dir <path>] [--pages 24,25,...]`
+- Migrate GT: `python src/migrate_gt.py [--pages 24,25,...]`（ocr_results+corrected → gt.json）
 - Start scripts: `start_review.bat`, `start_char_viewer.bat`
 
 ## Extension: 横排 + 多书帖 (branch: feat/horizontal-layout)

@@ -1,5 +1,8 @@
 """OCR Evaluator: cost-based scoring reflecting human review effort.
 
+GT is stored as page_N_gt.json snapshots (self-contained, pipeline-version-independent).
+Detection comes from page_N_ocr_results.json (pipeline output).
+
 Cost model:
   - Matching a pair: edge_cost + text_cost
     edge_sum = |dl| + |dt| + |dr| + |db|
@@ -9,6 +12,7 @@ Cost model:
   - Extra det box: 1 per box (one-click delete)
   - score = max(0, 100 * (1 - total_cost / max_cost))
     max_cost = n_gt * 10
+  - avg_score = weighted by GT char count: Σ(score × n_gt) / Σ(n_gt)
 """
 import json, os, math
 import numpy as np
@@ -22,9 +26,7 @@ C_MISS = 8
 C_EXTRA = 1
 EDGE_THRESH = 3
 
-PROD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'output', 'pages')
-PAGE_DIR = PROD_DIR
-_det_dir = None  # override for experiments
+_det_dir_override = None
 
 
 def load_json(path):
@@ -32,41 +34,13 @@ def load_json(path):
     with open(path, 'r', encoding='utf-8') as f: return json.load(f)
 
 
-def has_reviewed(page_num):
-    return os.path.exists(os.path.join(PAGE_DIR, f'page_{page_num:03d}_reviewed.json'))
+def has_gt(page_num):
+    return os.path.exists(os.path.join(PAGE_DIR, f'page_{page_num:03d}_gt.json'))
 
 
-def build_ground_truth(page_num):
-    base = load_json(os.path.join(PAGE_DIR, f'page_{page_num:03d}_ocr_results_baseline.json'))
-    if base is None:
-        return None
-    corr = load_json(os.path.join(PAGE_DIR, f'page_{page_num:03d}_corrected.json')) or []
-    gt_list = list(base)
-    to_delete = set()
-    for c in corr:
-        oi = c.get('orig_idx')
-        if c.get('deleted'):
-            if oi is not None and 0 <= oi < len(gt_list):
-                to_delete.add(oi)
-        elif c.get('added'):
-            gt_list.append({
-                'col': c.get('col', 0), 'row': c.get('row', 0),
-                'text': c.get('corrected_text', c.get('text', '')),
-                'confidence': c.get('confidence', 0),
-                'x': c['x'], 'y': c['y'], 'w': c['w'], 'h': c['h'],
-            })
-        else:
-            if oi is not None and 0 <= oi < len(gt_list):
-                if 'x' in c and 'y' in c and 'w' in c and 'h' in c:
-                    gt_list[oi]['x'], gt_list[oi]['y'] = c['x'], c['y']
-                    gt_list[oi]['w'], gt_list[oi]['h'] = c['w'], c['h']
-                gt_list[oi]['text'] = c.get('corrected_text', c.get('text', gt_list[oi]['text']))
-    for idx in sorted(to_delete, reverse=True):
-        gt_list.pop(idx)
-    return gt_list
+def load_gt(page_num):
+    return load_json(os.path.join(PAGE_DIR, f'page_{page_num:03d}_gt.json'))
 
-
-_det_dir_override = None
 
 def load_detection(page_num):
     det_dir = _det_dir_override or PAGE_DIR
@@ -102,9 +76,9 @@ def match_boxes(gt_boxes, det_boxes, max_dist=60):
 
 
 def evaluate_page(page_num):
-    if not has_reviewed(page_num):
+    if not has_gt(page_num):
         return None
-    gt = build_ground_truth(page_num)
+    gt = load_gt(page_num)
     det = load_detection(page_num)
     if gt is None or det is None:
         return None
@@ -151,10 +125,10 @@ def evaluate_page(page_num):
     }
 
 
-def get_submitted_pages():
+def get_gt_pages():
     pages = set()
     for f in os.listdir(PAGE_DIR):
-        if f.endswith('_reviewed.json'):
+        if f.endswith('_gt.json'):
             pages.add(int(f.split('_')[1]))
     return sorted(pages)
 
@@ -163,7 +137,7 @@ def evaluate_all(det_dir=None, pages=None):
     if det_dir:
         global _det_dir_override
         _det_dir_override = det_dir
-    eval_pages = pages if pages else get_submitted_pages()
+    eval_pages = pages if pages else get_gt_pages()
     results = []
     for p in eval_pages:
         r = evaluate_page(p)
@@ -185,7 +159,7 @@ def summarize(results):
     total_extra = sum(r['n_extra'] for r in results)
     total_correct = sum(r['correct_text'] for r in results)
     total_cost = sum(r['total_cost'] for r in results)
-    avg_score = np.mean([r['score'] for r in results])
+    avg_score = sum(r['score'] * r['n_gt'] for r in results) / total_gt if total_gt > 0 else 0
 
     print("\n" + "=" * 70)
     print("EVALUATION SUMMARY (cost-based)")
@@ -201,7 +175,7 @@ def summarize(results):
     text_cost = (total_matched - total_correct) * C_TEXT
     print(f"Text errors:        {total_matched - total_correct}  (cost {text_cost:.0f})")
     print(f"Total cost:         {total_cost:.0f} / {total_gt * (C_MISS + C_TEXT)}")
-    print(f"Avg score:          {avg_score:.2f}/100")
+    print(f"Avg score (weighted): {avg_score:.2f}/100")
     print("=" * 70)
 
 

@@ -1160,6 +1160,19 @@ def submit_page():
         # Update Obsidian character database
         sync_obsidian_entries(char_entries, full_text, page, CALLIGRAPHER, SOURCE_TEXT, CHAR_DB_DIR)
 
+        # Build and save GT snapshot from corrected clean data
+        gt_list = []
+        for d in clean:
+            gt_list.append({
+                'col': d['col'], 'row': d['row'],
+                'text': d.get('corrected_text') or d.get('text', ''),
+                'confidence': d.get('confidence', 0),
+                'x': d['x'], 'y': d['y'], 'w': d['w'], 'h': d['h'],
+            })
+        gt_path = os.path.join(PAGES_DIR, f"page_{page:03d}_gt.json")
+        with open(gt_path, 'w', encoding='utf-8') as f:
+            json.dump(gt_list, f, ensure_ascii=False, indent=2)
+
         # Mark as reviewed
         marker = os.path.join(PAGES_DIR, f"page_{page:03d}_reviewed.json")
         data = {'pages': [{'page': page, 'count': len(clean)}]}
